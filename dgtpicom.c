@@ -44,9 +44,9 @@ void *wl(void *x) {
 			e=dgtpicom_set_text("Goeindag",0,0,0);
 			if (e<0)
 				printf("%d: Display failed!\n",i);
-			e=dgtpicom_set_and_run(1,0,10,0,2,0,10,0);
-			if (e<0)
-				printf("%d: SetNRun failed!\n",i);
+//			e=dgtpicom_set_and_run(1,0,10,0,2,0,10,0);
+//			if (e<0)
+//				printf("%d: SetNRun failed!\n",i);
 			i++;
 			#ifdef debug
 			bug.sendTotal++;
@@ -149,9 +149,10 @@ int main (int argc, char *argv[]) {
 		ww=1;
 		pthread_t w;
 		pthread_create(&w, NULL, wl, NULL);
-		#endif
+		#else
 		if ( dgtpicom_off(1) < 0 )
 			dgtpicom_off(1);
+		#endif
 		but=tim=0;
 		while(1) {
 
