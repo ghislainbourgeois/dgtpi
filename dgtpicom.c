@@ -41,7 +41,7 @@ void *wl(void *x) {
 			e=dgtpicom_configure();
 			if (e<0)
 				printf("%d: Configure failed!\n",i);
-			e=dgtpicom_set_text("Goeindag",0,0,0);
+			e=dgtpicom_set_text("Hello world",0,0,0);
 			if (e<0)
 				printf("%d: Display failed!\n",i);
 //			e=dgtpicom_set_and_run(1,0,10,0,2,0,10,0);
@@ -93,6 +93,7 @@ int main (int argc, char *argv[]) {
 				atoi(argv[7]) );
 	} else if (argc>1) {
 		unsigned char beep=0, ldots=0, rdots=0;
+		dgtpicom_set_and_run(0,0,0,0,0,0,0,0);
 		if (argc>2)
 			beep=atoi(argv[2]);
 		if (argc>4) {
@@ -425,7 +426,7 @@ int dgtpicom_configure() {
 			continue;
 		} else {
 			// succes!
-			usleep(5000);
+			//usleep(1000);
 			break;
 		}
 	}
@@ -989,7 +990,7 @@ void *dgt3000Receive(void *a) {
 	#ifdef debug
 	RECEIVE_THREAD_RUNNING_PIN_HI;
 	#endif
-	
+
 	dgtRx.buttonRepeatTime = 0;
 
 	while (dgtRx.on) {
@@ -1050,9 +1051,9 @@ void *dgt3000Receive(void *a) {
 						if (rm[4]&0x1f) {
 							dgtRx.buttonState |= rm[4]&0x1f;
 							dgtRx.lastButtonState = rm[4];
-							dgtRx.buttonRepeatTime = *timer + 500000;
+							dgtRx.buttonRepeatTime = *timer + DGTPICOM_KEY_DELAY;
 							dgtRx.buttonCount = 0;
-							
+
 							// buffer full?
 							if ((dgtRx.buttonEnd+1)%DGTRX_BUTTON_BUFFER_SIZE == dgtRx.buttonStart) {
 								#ifdef debug
@@ -1121,9 +1122,9 @@ void *dgt3000Receive(void *a) {
 			pthread_mutex_unlock(&receiveMutex);
 		} else {
 			if (dgtRx.buttonRepeatTime != 0 && dgtRx.buttonRepeatTime < *timer) {
-				dgtRx.buttonRepeatTime += 250000;
+				dgtRx.buttonRepeatTime += DGTPICOM_KEY_REPEAT;
 				dgtRx.buttonCount++;
-				
+
 				// buffer full?
 				if ((dgtRx.buttonEnd+1)%DGTRX_BUTTON_BUFFER_SIZE == dgtRx.buttonStart) {
 					#ifdef debug

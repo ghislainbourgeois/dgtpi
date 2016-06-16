@@ -17,6 +17,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* configuration values
+ */
+#define	DGTPICOM_KEY_DELAY	800000
+#define DGTPICOM_KEY_REPEAT	400000
+
+
 
 /* Return codes for all funcitons are at the bottom of this doccument.
  * All functions try three times, the error is the reason why the third
