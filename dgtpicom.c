@@ -1588,16 +1588,15 @@ int checkPiModel() {
 	// looking for the revision....
 	while (fgets (line, 120, cpuFd) != NULL)
 		if (strncmp (line, "Revision", 8) == 0) {
-			// See if it's BCM2708 or BCM2709
-			if ( strstr(line, "a01041") != NULL || strstr(line,"a21041") != NULL ) {
+			if ( line[13] == '2' ) {	// BCM2837
 				fclose(cpuFd);
-				return 2;	// PI 2
-			} else if ( strstr(line, "a02082") != NULL || strstr(line,"a22082") != NULL ) {
+				return 3;	// PI 3b(+)
+			} else if ( line[13] == '1' ) {	// BCM2836
 				fclose(cpuFd);
-				return 3;	// PI 3
-			} else {
+				return 2;	// PI 2b
+			} else {			// BCM2835
 				fclose(cpuFd);
-				return 1;	// PI B+
+				return 1;	// PI a, b, zero (+)
 			}
 		}
 	fclose(cpuFd);
