@@ -31,6 +31,7 @@
 #include "dgtpicom_dgt3000.h"
 
 int ww;
+char piModel;
 
 // while loop
 void *wl(void *x) {
@@ -213,7 +214,10 @@ int dgtpicom_init() {
 	memset(&bug,0,sizeof(debug_t));
 	#endif
 
-	if (checkPiModel()==1)
+	piModel = checkPiModel();
+	if (piModel==4)
+		base=0xfe000000;
+	else if (piModel==1)
 		base=0x20000000;
 	else
 		base=0x3f000000;
@@ -278,29 +282,67 @@ int dgtpicom_init() {
 		#endif
 		return ERROR_LINES;
 	}
-	if ((*(gpio+1) & 0x07000000) == 0x01000000) {
-		#ifdef debug
-		printf("Error, GPIO18 configured as output, in use? We asume not a DGTPI\n");
-		#endif
-		return ERROR_LINES;
+	if  (piModel==4)
+	{
+		if ((*(gpio+1) & 0x07) == 0x01) {
+			#ifdef debug
+			printf("Error, GPIO10 configured as output, in use? We asume not a DGTPI\n");
+			#endif
+			return ERROR_LINES;
+		}
+		if ((*(gpio+1) & 0x38) == 0x08) {
+			#ifdef debug
+			printf("Error, GPIO11 configured as output, in use? We asume not a DGTPI\n");
+			#endif
+			return ERROR_LINES;
+		}
 	}
-	if ((*(gpio+1) & 0x38000000) == 0x08000000) {
-		#ifdef debug
-		printf("Error, GPIO19 configured as output, in use? We asume not a DGTPI\n");
-		#endif
-		return ERROR_LINES;
+	else
+	{
+		if ((*(gpio+1) & 0x07000000) == 0x01000000) {
+			#ifdef debug
+			printf("Error, GPIO18 configured as output, in use? We asume not a DGTPI\n");
+			#endif
+			return ERROR_LINES;
+		}
+		if ((*(gpio+1) & 0x38000000) == 0x08000000) {
+			#ifdef debug
+			printf("Error, GPIO19 configured as output, in use? We asume not a DGTPI\n");
+ 			#endif
+			return ERROR_LINES;
+		}
 	}
 	// pinmode GPIO2,GPIO3=input
 	*gpio &= 0xfffff03f;
-	// pinmode GPIO18,GPIO19=input
-	*(gpio+1) &= 0xc0ffffff;
+	if  (piModel==4)
+	{
+		// pinmode GPIO10,GPIO11=input
+		*(gpio+1) &= 0xffffffc0;
+	}
+	else
+	{
+		// pinmode GPIO18,GPIO19=input
+		*(gpio+1) &= 0xc0ffffff;
+	}
 	usleep(1);
 	// all pins hi through pullup?
-	if ((*gpioin & 0xc000c)!=0xc000c) {
-		#ifdef debug
-		printf("Error, pin(s) low, shortcircuit, or no connection?\n");
-		#endif
-		return ERROR_LINES;
+	if  (piModel==4)
+	{
+		if ((*gpioin & 0x0c0c)!=0x0c0c) {
+			#ifdef debug
+			printf("Error, pin(s) low, shortcircuit, or no connection?\n");
+			#endif
+			return ERROR_LINES;
+		}
+	}
+	else
+	{
+		if ((*gpioin & 0xc000c)!=0xc000c) {
+			#ifdef debug
+			printf("Error, pin(s) low, shortcircuit, or no connection?\n");
+			#endif
+			return ERROR_LINES;
+		}
 	}
 /*	// check SDA connection
 	// gpio18 low
@@ -667,9 +709,18 @@ void dgtpicom_stop() {
 
 	// pinmode GPIO2,GPIO3=input
 	*gpio &= 0xfffff03f;
-	// pinmode GPIO18,GPIO19=input
-	*(gpio+1) &= 0xc0ffffff;
+	if (piModel==4)
+	{
+		// pinmode GPIO10,GPIO11=input
+		*(gpio+1) &= 0xffffffc0;
+	}
+	else
+	{
+		// pinmode GPIO18,GPIO19=input
+		*(gpio+1) &= 0xc0ffffff;
+	}
 }
+
 
 
 
@@ -1492,8 +1543,16 @@ void i2cReset() {
 
 	// pinmode GPIO2,GPIO3=input (togle via input to reset i2C master(sometimes hangs))
 	*gpio &= 0xfffff03f;
-	// pinmode GPIO18,GPIO19=input (togle via input to reset)
-	*(gpio+1) &= 0x00ffffff;
+	if (piModel==4)
+	{
+		// pinmode GPIO10,GPIO11=input (togle via input to reset)
+		*(gpio+1) &= 0xffffffc0;
+	}
+	else
+	{
+		// pinmode GPIO18,GPIO19=input (togle via input to reset)
+		*(gpio+1) &= 0xc0ffffff;
+	}
 	// send something in case master hangs
 	//*i2cMasterFIFO = 0x69;
 	*i2cMasterDLEN = 0;
@@ -1507,8 +1566,16 @@ void i2cReset() {
 	*i2cMaster = 10;
 	// pinmode GPIO2,GPIO3=ALT0
 	*gpio |= 0x900;
-	// pinmode GPIO18,GPIO19=ALT3
-	*(gpio+1) |= 0x3f000000;
+	if (piModel==4)
+	{
+		// pinmode GPIO18,GPIO19=ALT3
+		*(gpio+1) |= 0x0000003f;	
+	}
+	else
+	{
+		// pinmode GPIO18,GPIO19=ALT3
+		*(gpio+1) |= 0x3f000000;
+	}
 
 	usleep(1000);	// not tested! some delay maybe needed
 
@@ -1588,7 +1655,10 @@ int checkPiModel() {
 	// looking for the revision....
 	while (fgets (line, 120, cpuFd) != NULL)
 		if (strncmp (line, "Revision", 8) == 0) {
-			if ( line[13] == '2' ) {	// BCM2837
+			if ( line[13] == '3' ) {	// BCM2838
+				fclose(cpuFd);
+				return 4;	// PI 4b
+			} else if ( line[13] == '2' ) {	// BCM2837
 				fclose(cpuFd);
 				return 3;	// PI 3b(+)
 			} else if ( line[13] == '1' ) {	// BCM2836
@@ -1596,7 +1666,7 @@ int checkPiModel() {
 				return 2;	// PI 2b
 			} else {			// BCM2835
 				fclose(cpuFd);
-				return 1;	// PI a, b, zero (+)
+				return 1;	// PI a, b, zero (+)	
 			}
 		}
 	fclose(cpuFd);
