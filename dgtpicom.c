@@ -1592,14 +1592,14 @@ void i2cReset() {
 		printf("FIFO=%x\n",*i2cMasterFIFO);
 		printf("DIV =%x\n",*i2cMasterDiv);
 		printf("Del =%x\n",*i2cMasterDel);
-		
+
 		printf("I2C Slave might be stuck in transfer?\n");
 		printf("DR  =%x\n",*i2cSlave);
 		printf("RSR =%x\n",*i2cSlaveRSR);
 		printf("SLV =%x\n",*i2cSlaveSLV);
 		printf("CR  =%x\n",*i2cSlaveCR);
 		printf("FR  =%x\n",*i2cSlaveFR);
-			
+
 		printf("SDA=%x\n",SDA1IN);
 		printf("SCL=%x\n",SCL1IN);
 	}
@@ -1619,12 +1619,15 @@ void i2cReset() {
 	*i2cSlaveRSR = 0;
 
 	// set i2c master to 100khz
-//	if ( checkPiModel() == 3 )
-//		*i2cMasterDiv = 0x1072;
-//	else
-//		*i2cMasterDiv = 0x0a47;	// 95khz works better
+	if ( checkPiModel() == 4 )
+	{	// assume clock at 500 MHz
 		*i2cMasterDiv = 0x148c;	// 95khz works better
 		*i2cMasterDel = 0x600060;
+	}
+	else
+	{	// assume clock at 250 MHz
+		*i2cMasterDiv = 0x0a47;	// 95khz works better
+	}
 //		*i2cMasterDiv = 0x09c4;	// 100khz
 //		*i2cMasterDiv = 0x0271;	// 400khz
 }
