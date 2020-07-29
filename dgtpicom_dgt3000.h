@@ -53,8 +53,8 @@
 #define I2C_SLAVE_BASE 0x214000
 #define I2C_MASTER_BASE 0x804000
 
-#define SDA1IN (*gpioin & (1 << 2))    // SDA1 = GPIO 2
-#define SCL1IN (*gpioin & (1 << 3))    // SCL1 = GPIO 3
+#define SDA1IN ((*gpioin >> 2) & 1)    // SDA1 = GPIO 2
+#define SCL1IN ((*gpioin >> 3) & 1)    // SCL1 = GPIO 3
 
 
 // receive buffer length, longest package is program 51,
@@ -74,7 +74,7 @@
 // pointers to BCM2708/9 registers
 volatile unsigned *gpio, *gpioset, *gpioclr, *gpioin;
 volatile unsigned *i2cSlave, *i2cSlaveRSR, *i2cSlaveSLV, *i2cSlaveCR, *i2cSlaveFR;
-volatile unsigned *i2cMaster, *i2cMasterS, *i2cMasterDLEN, *i2cMasterA, *i2cMasterFIFO, *i2cMasterDiv;
+volatile unsigned *i2cMaster, *i2cMasterS, *i2cMasterDLEN, *i2cMasterA, *i2cMasterFIFO, *i2cMasterDiv, *i2cMasterDel;
 long long int *timer;
 
 // variables for debug stats

@@ -267,6 +267,7 @@ int dgtpicom_init() {
 	i2cMasterA = i2cMaster + 3;
 	i2cMasterFIFO = i2cMaster + 4;
 	i2cMasterDiv = i2cMaster + 5;
+	i2cMasterDel = i2cMaster + 6;
 
 	// check wiring
 	// configured as an output? probably in use for something else
@@ -1556,19 +1557,19 @@ void i2cReset() {
 	// send something in case master hangs
 	//*i2cMasterFIFO = 0x69;
 	*i2cMasterDLEN = 0;
-//	*i2cMaster = 0x8080;
+	//*i2cMaster = 0x8080;
 	while((*i2cSlaveFR&2) == 0) {
 		dummyRead(i2cSlave);
 	}
 	usleep(2000);	// not tested! some delay maybe needed
 	*i2cSlaveCR = 0;
 	*i2cMasterS = 0x302;
-	*i2cMaster = 10;
+	*i2cMaster = 0x8010;
 	// pinmode GPIO2,GPIO3=ALT0
 	*gpio |= 0x900;
 	if (piModel==4)
 	{
-		// pinmode GPIO18,GPIO19=ALT3
+		// pinmode GPIO10,GPIO11=ALT3
 		*(gpio+1) |= 0x0000003f;	
 	}
 	else
@@ -1590,6 +1591,15 @@ void i2cReset() {
 		printf("A   =%x\n",*i2cMasterA);
 		printf("FIFO=%x\n",*i2cMasterFIFO);
 		printf("DIV =%x\n",*i2cMasterDiv);
+		printf("Del =%x\n",*i2cMasterDel);
+		
+		printf("I2C Slave might be stuck in transfer?\n");
+		printf("DR  =%x\n",*i2cSlave);
+		printf("RSR =%x\n",*i2cSlaveRSR);
+		printf("SLV =%x\n",*i2cSlaveSLV);
+		printf("CR  =%x\n",*i2cSlaveCR);
+		printf("FR  =%x\n",*i2cSlaveFR);
+			
 		printf("SDA=%x\n",SDA1IN);
 		printf("SCL=%x\n",SCL1IN);
 	}
@@ -1612,7 +1622,9 @@ void i2cReset() {
 //	if ( checkPiModel() == 3 )
 //		*i2cMasterDiv = 0x1072;
 //	else
-		*i2cMasterDiv = 0x0a47;	// 95khz works better
+//		*i2cMasterDiv = 0x0a47;	// 95khz works better
+		*i2cMasterDiv = 0x148c;	// 95khz works better
+		*i2cMasterDel = 0x600060;
 //		*i2cMasterDiv = 0x09c4;	// 100khz
 //		*i2cMasterDiv = 0x0271;	// 400khz
 }
