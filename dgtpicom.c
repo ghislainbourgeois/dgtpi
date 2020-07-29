@@ -1562,7 +1562,7 @@ void i2cReset() {
 		dummyRead(i2cSlave);
 	}
 	usleep(2000);	// not tested! some delay maybe needed
-	*i2cSlaveCR = 0;
+	*i2cSlaveCR = 0x285;
 	*i2cMasterS = 0x302;
 	*i2cMaster = 0x8010;
 	// pinmode GPIO2,GPIO3=ALT0
