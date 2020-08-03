@@ -1,6 +1,11 @@
 # dgtpi
 DGTPi I2C communication with DGT3000
 
+Make sure the core frequency is locked. To do this you can add the following lines to /boot/config.txt:
+core_freq=250
+core_freq_min=250
+you can increase these frequencies if needed for 4k resolution on the pi 4
+
 to compile use:
 $ make
 
