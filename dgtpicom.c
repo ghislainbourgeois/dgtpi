@@ -128,13 +128,17 @@ int main (int argc, char *argv[]) {
 			}
 		} else if ( argv[1][0]=='*' ){
 			while(1) {
-				dgtpicom_set_text("  DGT PI  -",beep,ldots,rdots);
+				if ( dgtpicom_set_text("  DGT PI  -",beep,ldots,rdots) != ERROR_OK )
+					i2cReset();
 				usleep(200000);
-				dgtpicom_set_text("  DGT PI  \\",beep,ldots,rdots);
+				if ( dgtpicom_set_text("  DGT PI  ||",beep,ldots,rdots) != ERROR_OK )
+					i2cReset();
 				usleep(200000);
-				dgtpicom_set_text("  DGT PI  |",beep,ldots,rdots);
+				if ( dgtpicom_set_text("  DGT PI  |",beep,ldots,rdots) != ERROR_OK )
+					i2cReset();
 				usleep(200000);
-				dgtpicom_set_text("  DGT PI  /",beep,ldots,rdots);
+				if ( dgtpicom_set_text("  DGT PI  /",beep,ldots,rdots) != ERROR_OK )
+					i2cReset();
 				usleep(200000);
 			}
 		} else {
@@ -1538,6 +1542,8 @@ static unsigned int dummyRead(volatile unsigned int *addr) {
 
 // configure IO pins and I2C Master and Slave
 void i2cReset() {
+	int freq;
+
 	*i2cSlaveCR = 0;
 	*i2cMaster = 0x10;
 	*i2cMaster = 0x0000;
@@ -1618,18 +1624,13 @@ void i2cReset() {
 	// reset errors
 	*i2cSlaveRSR = 0;
 
-	// set i2c master to 100khz
-	if ( checkPiModel() == 4 )
-	{	// assume clock at 500 MHz
-		*i2cMasterDiv = 0x148c;	// 95khz works better
+	freq = checkCoreFreq();
+	#ifdef debug
+	printf("Reset I2C device, core freq = %i MHz\n", freq);
+	#endif
+	*i2cMasterDiv = 1000*freq/95;
+	if ( freq > 300 )
 		*i2cMasterDel = 0x600060;
-	}
-	else
-	{	// assume clock at 250 MHz
-		*i2cMasterDiv = 0x0a47;	// 95khz works better
-	}
-//		*i2cMasterDiv = 0x09c4;	// 100khz
-//		*i2cMasterDiv = 0x0271;	// 400khz
 }
 
 // print hex values
@@ -1686,4 +1687,26 @@ int checkPiModel() {
 		}
 	fclose(cpuFd);
 	return 0;
+}
+
+int checkCoreFreq() {
+	FILE *fp;
+	char line[100];
+
+	/* Open the command for reading. */
+	fp = popen("vcgencmd measure_clock core", "r");
+	if (fp == NULL) {
+		#ifdef debug
+		printf("Failed to measure core clock\n" );
+		#endif
+		return 250;
+	}
+
+	/* Read the output a line at a time - output it. */
+	fgets(line, sizeof(line), fp);
+
+	/* close */
+	pclose(fp);
+
+	return atoi(line+13)/1000000;
 }

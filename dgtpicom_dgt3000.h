@@ -187,6 +187,8 @@ const char crc_table[256] = {
 	2 = Pi 2 */
 int checkPiModel();
 
+int checkCoreFreq();
+
 /* calculate checksum and put it in the last byte
 	*buffer = pointer to buffer */
 char crc_calc(char *buffer);
