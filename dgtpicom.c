@@ -1661,8 +1661,9 @@ char crc_calc(char *buffer) {
 long long int * timer()
 {
 	static long long int i;
+	long j = *timerh;
 	i = (long long int)*timerl << 32;
-	i += *timerh;
+	i += j;
 	return &i;
 }
 
