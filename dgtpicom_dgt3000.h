@@ -75,8 +75,8 @@
 volatile unsigned *gpio, *gpioset, *gpioclr, *gpioin;
 volatile unsigned *i2cSlave, *i2cSlaveRSR, *i2cSlaveSLV, *i2cSlaveCR, *i2cSlaveFR;
 volatile unsigned *i2cMaster, *i2cMasterS, *i2cMasterDLEN, *i2cMasterA, *i2cMasterFIFO, *i2cMasterDiv, *i2cMasterDel;
-long *timerh;
-long *timerl;
+int32_t *timerh;
+int32_t *timerl;
 
 // variables for debug stats
 #ifdef debug

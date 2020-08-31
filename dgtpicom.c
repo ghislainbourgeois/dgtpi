@@ -255,8 +255,8 @@ int dgtpicom_init() {
 	gpioin = gpio + 13;     // read all bits register
 
 	// timer pointer
-	timerh = (long *)((char *)timer_map + 4);
-	timerl = (long *)((char *)timer_map + 8);
+	timerh = (int32_t *)((char *)timer_map + 4);
+	timerl = (int32_t *)((char *)timer_map + 8);
 
 	// i2c slave pointers
 	i2cSlave = (volatile unsigned *)i2c_slave_map;
@@ -1661,9 +1661,8 @@ char crc_calc(char *buffer) {
 long long int * timer()
 {
 	static long long int i;
-	long j = *timerh;
 	i = (long long int)*timerl << 32;
-	i += j;
+	i += *timerh;
 	return &i;
 }
 
