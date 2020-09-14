@@ -255,8 +255,8 @@ int dgtpicom_init() {
 	gpioin = gpio + 13;     // read all bits register
 
 	// timer pointer
-	timerh = (int32_t *)((char *)timer_map + 4);
-	timerl = (int32_t *)((char *)timer_map + 8);
+	timerh = (u_int32_t *)((char *)timer_map + 4);
+	timerl = (u_int32_t *)((char *)timer_map + 8);
 
 	// i2c slave pointers
 	i2cSlave = (volatile unsigned *)i2c_slave_map;
@@ -735,7 +735,7 @@ void dgtpicom_stop() {
 // send a wake command to the dgt3000
 int dgt3000Wake() {
 	int e;
-	long long int t;
+	u_int64_t t;
 
 
 
@@ -1212,7 +1212,7 @@ void *dgt3000Receive(void *a) {
 }
 
 // wait for an Ack message
-int dgt3000GetAck(char adr, char cmd, long long int timeOut) {
+int dgt3000GetAck(char adr, char cmd, u_int64_t timeOut) {
 	struct timespec receiveTimeOut;
 
 
@@ -1252,7 +1252,7 @@ int dgt3000GetAck(char adr, char cmd, long long int timeOut) {
 // send message using I2CMaster
 int i2cSend(char message[], char ackAdr) {
 	int i, n;
-	long long int timeOut;
+	u_int64_t timeOut;
 
 	// set length
 	*i2cMasterDLEN = message[2]-1;
@@ -1414,7 +1414,7 @@ int i2cSend(char message[], char ackAdr) {
 int i2cReceive(char m[]) {
 	// todo implement end of packet check
 	int i=1;
-	long long int timeOut;
+	u_int64_t timeOut;
 
 	m[0]=*i2cSlaveSLV*2;
 
@@ -1658,10 +1658,10 @@ char crc_calc(char *buffer) {
 	return ERROR_CRC;
 }
 
-long long int * timer()
+u_int64_t * timer()
 {
-	static long long int i;
-	i = (long long int)*timerl << 32;
+	static u_int64_t i;
+	i = (u_int64_t)*timerl << 32;
 	i += *timerh;
 	return &i;
 }
