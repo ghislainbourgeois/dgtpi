@@ -2,7 +2,7 @@
 
 CC=gcc
 
-CFLAGS=-pthread -Wall
+CFLAGS=-pthread -Wall -pedantic-errors
 
 all:
 	$(CC) $(CFLAGS) -o dgtpicom dgtpicom.c
