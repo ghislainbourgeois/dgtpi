@@ -1577,7 +1577,7 @@ void i2cReset() {
     if (piModel==4)
     {
         // pinmode GPIO10,GPIO11=ALT3
-        *(gpio+1) |= 0x0000003f;    
+        *(gpio+1) |= 0x0000003f;
     }
     else
     {
@@ -1673,7 +1673,7 @@ int checkPiModel() {
 
     if ((cpuFd = fopen ("/proc/cpuinfo", "r")) == NULL)
         #ifdef debug
-        printf("Unable to open /proc/cpuinfo") 
+        printf("Unable to open /proc/cpuinfo")
         #endif
         ;
 
@@ -1691,7 +1691,7 @@ int checkPiModel() {
                 return 2;   // PI 2b
             } else {            // BCM2835
                 fclose(cpuFd);
-                return 1;   // PI a, b, zero (+)    
+                return 1;   // PI a, b, zero (+)
             }
         }
     fclose(cpuFd);
