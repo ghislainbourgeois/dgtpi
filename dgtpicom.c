@@ -45,9 +45,6 @@ void *wl(void *x) {
             e=dgtpicom_set_text("Hello world",0,0,0);
             if (e<0)
                 printf("%d: Display failed!\n",i);
-//          e=dgtpicom_set_and_run(1,0,10,0,2,0,10,0);
-//          if (e<0)
-//              printf("%d: SetNRun failed!\n",i);
             i++;
             #ifdef debug
             bug.sendTotal++;
@@ -60,8 +57,6 @@ void *wl(void *x) {
 
 int main (int argc, char *argv[]) {
     int e;
-    //char message[255];
-    //char t[6]
     char but,tim;
 
     // get direct acces to the perhicels
@@ -161,13 +156,6 @@ int main (int argc, char *argv[]) {
         #endif
         but=tim=0;
         while(1) {
-
-
-        //  printf("rxMaxBuf=%d  ",bug.rxMaxBuf);
-
-        //  dgt3000GetTime(t);
-        //  printf("time=%d:%02d.%02d %d:%02d.%02d\n",t[0],t[1],t[2],t[3],t[4],t[5]);
-
             if (dgtpicom_get_button_message(&but,&tim)) {
                 if (but&0x40) {
                     if (ww)
@@ -180,13 +168,10 @@ int main (int argc, char *argv[]) {
                 }
                 printf("%.3f ",(float)*timer()/1000000);
                 printf("button=%02x, time=%d\n",but,tim);
-            //  dgt3000EndDisplay();
             }
 
             usleep(10000);
         }
-//      dgtpicom_configure();
-//      dgtpicom_set_text("Booting",0,0,0);
     }
 
     dgtpicom_stop();
@@ -350,49 +335,6 @@ int dgtpicom_init() {
             return ERROR_LINES;
         }
     }
-/*  // check SDA connection
-    // gpio18 low
-    *gpioclr = 1<<18;
-    // gpio18 output
-    *(gpio+1) |= 0x01000000;
-    usleep(1);
-    // check gpio 18 and 2
-    if ((*gpioin & 0x40004)!=0) {
-        #ifdef debug
-        printf("Error, SDA not connected\n");
-        #endif
-        // gpio18 back to input
-        *(gpio+1) &= 0xf8ffffff;
-        return ERROR_LINES;
-    }
-    if ((*gpioin & 0x80008)!=0x80008) {
-        #ifdef debug
-        printf("Error, SDA connected to SCL\n");
-        #endif
-        // gpio18 back to input
-        *(gpio+1) &= 0xf8ffffff;
-        return ERROR_LINES;
-    }
-    // gpio18 back to input
-    *(gpio+1) &= 0xf8ffffff;
-    // check SCL connection
-    // gpio19 low
-    *gpioclr = 1<<19;
-    // gpio19 output
-    *(gpio+1) |= 0x08000000;
-    usleep(1);
-    // check gpio 19 and 3
-    if ((*gpioin & 0x80008)!=0) {
-        #ifdef debug
-        printf("Error, SCL not connected\n");
-        #endif
-        // gpio19 back to input
-        *(gpio+1) &= 0xc7ffffff;
-        return ERROR_LINES;
-    }
-    // gpio19 back to input
-    *(gpio+1) &= 0xc7ffffff;
-*/
     i2cReset();
 
     // set to I2CMaster destination adress
@@ -415,7 +357,6 @@ int dgtpicom_configure() {
     int wakeCount = 0;
     int setCCCount = 0;
     int resetCount = 0;
-
 
     // get the clock into the right state
     while (1) {
@@ -457,7 +398,6 @@ int dgtpicom_configure() {
             continue;
         } else if (e==ERROR_SILENT) {
             // message not acked, probably clock off -> wake
-            // wake#++
             wakeCount++;
 
             // wake#>3? -> error
@@ -474,7 +414,6 @@ int dgtpicom_configure() {
             continue;
         } else {
             // succes!
-            //usleep(1000);
             break;
         }
     }
@@ -534,7 +473,6 @@ int dgtpicom_run(char lr, char rr) {
 int dgtpicom_set_text(char text[], char beep, char ld, char rd) {
     int i,e;
     int sendCount = 0;
-
 
     for (i=0;i<11;i++) {
         if(text[i]==0) break;
@@ -654,33 +592,6 @@ int dgtpicom_off(char returnMode) {
     mode25[4]=32+returnMode;
     crc_calc(mode25);
 
-
-/*  // send mode 25 message
-    e=i2cSend(mode25,0x10);
-
-    // send succesful?
-    if (e<0) {
-        #ifdef debug
-        bug.changeStateSF++;
-        #endif
-        return e;
-    }
-
-    // listen to our own adress an get Reply
-    e=dgt3000GetAck(0x10,0x0b,10000);
-
-    // ack received?
-    if (e<0) {
-        #ifdef debug
-        bug.changeStateAF++;
-        #endif
-        return e;
-    }
-
-    // negetive ack not in CC
-    if (dgtRx.ack[1]!=8)
-        return ERROR_NACK;
-*/
     mode25[4]=0;
     crc_calc(mode25);
 
@@ -727,17 +638,10 @@ void dgtpicom_stop() {
     }
 }
 
-
-
-
-
-
 // send a wake command to the dgt3000
 int dgt3000Wake() {
     int e;
     u_int64_t t;
-
-
 
     // send wake
     *i2cMasterA=40;
@@ -1034,8 +938,6 @@ int dgt3000SetNRun(char srm[]) {
     return ERROR_NACK;
 }
 
-
-
 // check for messages from dgt3000
 void *dgt3000Receive(void *a) {
     char rm[RECEIVE_BUFFER_LENGTH];
@@ -1059,8 +961,6 @@ void *dgt3000Receive(void *a) {
             #ifdef debug2
             if (e>0) {
                 printf("<- ");
-            //  printf("maxs=%d  ",maxs);
-            //  printf("length=%d  ",e);
                 for (i=0;i<e;i++)
                     printf("%02x ", rm[i]);
             } else if (e<0) {
@@ -1215,12 +1115,9 @@ void *dgt3000Receive(void *a) {
 int dgt3000GetAck(char adr, char cmd, u_int64_t timeOut) {
     struct timespec receiveTimeOut;
 
-
     pthread_mutex_lock(&receiveMutex);
 
-
     // listen to given adress
-//  while ((*i2cSlaveFR&0x20) != 0 );
     *i2cSlaveSLV=adr;
 
     // check until timeout
@@ -1245,9 +1142,6 @@ int dgt3000GetAck(char adr, char cmd, u_int64_t timeOut) {
     else
         return ERROR_NOACK;
 }
-
-
-
 
 // send message using I2CMaster
 int i2cSend(char message[], char ackAdr) {
@@ -1366,7 +1260,6 @@ int i2cSend(char message[], char ackAdr) {
 
     // succes?
     if ((*i2cMasterS&0x300)==0) {
-//      *i2cSlaveSLV = ackAdr;
         return ERROR_OK;
     }
 
@@ -1562,9 +1455,7 @@ void i2cReset() {
         *(gpio+1) &= 0xc0ffffff;
     }
     // send something in case master hangs
-    //*i2cMasterFIFO = 0x69;
     *i2cMasterDLEN = 0;
-    //*i2cMaster = 0x8080;
     while((*i2cSlaveFR&2) == 0) {
         dummyRead(i2cSlave);
     }
@@ -1586,7 +1477,6 @@ void i2cReset() {
     }
 
     usleep(1000);   // not tested! some delay maybe needed
-
 
     #ifdef debug
     if ((SDA1IN==0) || (SCL1IN==0)) {
