@@ -953,8 +953,8 @@ void *dgt3000Receive(void *a) {
     dgtRx.buttonRepeatTime = 0;
 
     while (dgtRx.on) {
+        pthread_mutex_lock(&receiveMutex);
         if ( (*i2cSlaveFR&0x20) != 0 || (*i2cSlaveFR&2) == 0 ) {
-            pthread_mutex_lock(&receiveMutex);
 
             e=i2cReceive(rm);
 
@@ -1076,7 +1076,6 @@ void *dgt3000Receive(void *a) {
                 #endif
                 dgtRx.error=e;
             }
-            pthread_mutex_unlock(&receiveMutex);
         } else {
             if (dgtRx.buttonRepeatTime != 0 && dgtRx.buttonRepeatTime < *timer()) {
                 dgtRx.buttonRepeatTime += DGTPICOM_KEY_REPEAT;
@@ -1096,13 +1095,13 @@ void *dgt3000Receive(void *a) {
             }
             #ifdef debug
             RECEIVE_THREAD_RUNNING_PIN_LO;
-            #endif
             usleep(400);
-            #ifdef debug
             RECEIVE_THREAD_RUNNING_PIN_HI;
             #endif
 
         }
+        pthread_mutex_unlock(&receiveMutex);
+        usleep(400);
     }
     #ifdef debug
     RECEIVE_THREAD_RUNNING_PIN_LO;
@@ -1198,6 +1197,7 @@ int i2cSend(char message[], char ackAdr) {
             return ERROR_TIMEOUT;
         }
     }
+    pthread_mutex_lock(&receiveMutex);
     #ifdef debug
     WAIT_FOR_FREE_BUS_PIN_LO;
     #endif
@@ -1233,6 +1233,7 @@ int i2cSend(char message[], char ackAdr) {
                 printf("%.3f ",(float)*timer()/1000000);
                 printf("    Send error: Buffer free timeout, waited more then 10ms for space in the buffer\n");
                 #endif
+                pthread_mutex_unlock(&receiveMutex);
                 return ERROR_TIMEOUT;
             }
         }
@@ -1255,11 +1256,13 @@ int i2cSend(char message[], char ackAdr) {
             printf("%.3f ",(float)*timer()/1000000);
             printf("    Send error: done timeout, waited more then 10ms for message to be finished sending\n");
             #endif
+            pthread_mutex_unlock(&receiveMutex);
             return ERROR_TIMEOUT;
         }
 
     // succes?
     if ((*i2cMasterS&0x300)==0) {
+        pthread_mutex_unlock(&receiveMutex);
         return ERROR_OK;
     }
 
@@ -1283,6 +1286,7 @@ int i2cSend(char message[], char ackAdr) {
         #endif
 
         // probably collision
+        pthread_mutex_unlock(&receiveMutex);
         return ERROR_CST;
     }
 
@@ -1296,10 +1300,12 @@ int i2cSend(char message[], char ackAdr) {
         #endif
 
         // probably collision
+        pthread_mutex_unlock(&receiveMutex);
         return ERROR_LINES;
     }
 
     // probably clock off
+    pthread_mutex_unlock(&receiveMutex);
     return ERROR_SILENT;
 }
 
@@ -1551,8 +1557,7 @@ char crc_calc(char *buffer) {
 u_int64_t * timer()
 {
     static u_int64_t i;
-    i = (u_int64_t)*timerl << 32;
-    i += *timerh;
+    i = ((u_int64_t)*timerl << 32) + *timerh;
     return &i;
 }
 
