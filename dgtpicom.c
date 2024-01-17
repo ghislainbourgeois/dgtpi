@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <string.h>
@@ -194,7 +195,8 @@ int main (int argc, char *argv[]) {
 
 // Get direct access to BCM2708/9 chip.
 int dgtpicom_init() {
-    int memfd, base;
+    int memfd;
+    uint32_t base;
     void *gpio_map, *timer_map, *i2c_slave_map, *i2c_master_map;
     struct sched_param params;
 
