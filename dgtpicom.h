@@ -17,6 +17,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef DGTPICOM_H
+#define DGTPICOM_H
+
 /* configuration values
  */
 #define	DGTPICOM_KEY_DELAY	800000
@@ -133,3 +136,5 @@ void dgtpicom_stop();
  *   -1 = negative ack received, 
  *    0 = succes!
  */
+
+#endif
