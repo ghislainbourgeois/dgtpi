@@ -52,16 +52,8 @@
  
 //*** helping functions ***//
 
-/* find out wich pi
-	returns:
-	0 = error
-	1 = Pi b+
-	2 = Pi 2 */
-int checkPiModel();
 
 uint64_t * timer();
-
-int checkCoreFreq();
 
 /* calculate checksum and put it in the last byte
 	*buffer = pointer to buffer */

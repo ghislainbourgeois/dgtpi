@@ -32,13 +32,13 @@
 #include "dgtpicom_dgt3000.h"
 #include "rpi.h"
 #include "clock_proto.h"
-#include "debug.h"
-
-char piModel;
 
 #ifdef debug
+#include "debug.h"
 debug_t bug;
 #endif
+
+char piModel;
 
 // Get direct access to BCM2708/9 chip.
 int dgtpicom_init() {
@@ -89,8 +89,8 @@ int dgtpicom_init() {
     gpioin = gpio + 13;     // read all bits register
 
     // timer pointer
-    timerh = (u_int32_t *)((char *)timer_map + 4);
-    timerl = (u_int32_t *)((char *)timer_map + 8);
+    timerh = (uint32_t *)((char *)timer_map + 4);
+    timerl = (uint32_t *)((char *)timer_map + 8);
 
     // i2c slave pointers
     i2cSlave = (volatile unsigned *)i2c_slave_map;
@@ -487,15 +487,19 @@ void dgtpicom_stop() {
     }
 }
 
+void i2cDestination(char addr) {
+    *i2cMasterA = addr;
+}
+
 // send a wake command to the dgt3000
 int dgt3000Wake() {
     int e;
-    u_int64_t t;
+    uint64_t t;
 
     // send wake
-    *i2cMasterA=40;
+    i2cDestination(40);
     e=i2cSend(ping,0x00);
-    *i2cMasterA=8;
+    i2cDestination(8);
 
     // succes? -> error. Wake messages should never get an Ack
     if (e==ERROR_OK) {
@@ -960,7 +964,7 @@ void *dgt3000Receive(void *a) {
 }
 
 // wait for an Ack message
-int dgt3000GetAck(char adr, char cmd, u_int64_t timeOut) {
+int dgt3000GetAck(char adr, char cmd, uint64_t timeOut) {
     struct timespec receiveTimeOut;
 
     pthread_mutex_lock(&receiveMutex);
@@ -994,7 +998,7 @@ int dgt3000GetAck(char adr, char cmd, u_int64_t timeOut) {
 // send message using I2CMaster
 int i2cSend(char message[], char ackAdr) {
     int i, n;
-    u_int64_t timeOut;
+    uint64_t timeOut;
 
     // set length
     *i2cMasterDLEN = message[2]-1;
@@ -1162,7 +1166,7 @@ int i2cSend(char message[], char ackAdr) {
 int i2cReceive(char m[]) {
     // todo implement end of packet check
     int i=1;
-    u_int64_t timeOut;
+    uint64_t timeOut;
 
     m[0]=*i2cSlaveSLV*2;
 
@@ -1401,65 +1405,4 @@ char crc_calc(char *buffer) {
         return ERROR_OK;
     buffer[i]=crc_result;
     return ERROR_CRC;
-}
-
-u_int64_t * timer()
-{
-    static u_int64_t i;
-    i = ((u_int64_t)*timerl << 32) + *timerh;
-    return &i;
-}
-
-// find out wich pi
-int checkPiModel() {
-    FILE *cpuFd ;
-    char line [120] ;
-
-    if ((cpuFd = fopen ("/proc/cpuinfo", "r")) == NULL)
-        #ifdef debug
-        printf("Unable to open /proc/cpuinfo")
-        #endif
-        ;
-
-    // looking for the revision....
-    while (fgets (line, 120, cpuFd) != NULL)
-        if (strncmp (line, "Revision", 8) == 0) {
-            if ( line[13] == '3' ) {    // BCM2838
-                fclose(cpuFd);
-                return 4;   // PI 4b
-            } else if ( line[13] == '2' ) { // BCM2837
-                fclose(cpuFd);
-                return 3;   // PI 3b(+)
-            } else if ( line[13] == '1' ) { // BCM2836
-                fclose(cpuFd);
-                return 2;   // PI 2b
-            } else {            // BCM2835
-                fclose(cpuFd);
-                return 1;   // PI a, b, zero (+)
-            }
-        }
-    fclose(cpuFd);
-    return 0;
-}
-
-int checkCoreFreq() {
-    FILE *fp;
-    char line[100];
-
-    /* Open the command for reading. */
-    fp = popen("vcgencmd measure_clock core", "r");
-    if (fp == NULL) {
-        #ifdef debug
-        printf("Failed to measure core clock\n" );
-        #endif
-        return 250;
-    }
-
-    /* Read the output a line at a time - output it. */
-    fgets(line, sizeof(line), fp);
-
-    /* close */
-    pclose(fp);
-
-    return atoi(line+13)/1000000;
 }

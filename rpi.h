@@ -1,17 +1,19 @@
 #ifndef RPI_H
 #define RPI_H
 
+#include <stdint.h>
+
 #define GPIO_BASE  0x200000
 #define TIMER_BASE 0x003000
 #define I2C_SLAVE_BASE 0x214000
 #define I2C_MASTER_BASE 0x804000
 
 // pointers to BCM2708/9 registers
-volatile unsigned *gpio, *gpioset, *gpioclr, *gpioin;
-volatile unsigned *i2cSlave, *i2cSlaveRSR, *i2cSlaveSLV, *i2cSlaveCR, *i2cSlaveFR;
-volatile unsigned *i2cMaster, *i2cMasterS, *i2cMasterDLEN, *i2cMasterA, *i2cMasterFIFO, *i2cMasterDiv, *i2cMasterDel;
-uint32_t *timerh;
-uint32_t *timerl;
+extern volatile unsigned *gpio, *gpioset, *gpioclr, *gpioin;
+extern volatile unsigned *i2cSlave, *i2cSlaveRSR, *i2cSlaveSLV, *i2cSlaveCR, *i2cSlaveFR;
+extern volatile unsigned *i2cMaster, *i2cMasterS, *i2cMasterDLEN, *i2cMasterA, *i2cMasterFIFO, *i2cMasterDiv, *i2cMasterDel;
+extern uint32_t *timerh;
+extern uint32_t *timerl;
 
 #define SDA1IN ((*gpioin >> 2) & 1)    // SDA1 = GPIO 2
 #define SCL1IN ((*gpioin >> 3) & 1)    // SCL1 = GPIO 3
@@ -25,5 +27,16 @@ uint32_t *timerl;
 #define ERROR_PIN_HI *gpioset = (1 << 22)  // GPIO 22
 #define ERROR_PIN_LO *gpioclr = (1 << 22)
 #endif
+
+/* find out wich pi
+	returns:
+	0 = error
+	1 = Pi b+
+	2 = Pi 2 */
+int checkPiModel();
+
+int checkCoreFreq();
+
+uint64_t * timer();
 
 #endif
