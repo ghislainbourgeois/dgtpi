@@ -5,6 +5,7 @@
 #include "dgtpicom.h"
 #include "dgtpicom_dgt3000.h"
 #include "debug.h"
+#include "rpi.h"
 
 int ww;
 

@@ -50,9 +50,11 @@
 #define	ERROR_NACK		-1
 #define	ERROR_OK		0
  
+// receive buffer length, longest package is program 51,
+// debug can be modified in the future to max length of 255
+#define RECEIVE_BUFFER_LENGTH 256
+
 //*** helping functions ***//
-
-
 uint64_t * timer();
 
 /* calculate checksum and put it in the last byte
@@ -66,22 +68,6 @@ void hexPrint(char bytes[], int length);
 
 
 //*** Low level I2C communication ***//
-
-/* configure IO pins and I2C Master and Slave
-	*/
-void i2cReset();
-
-/* get message from I2C receive buffer
-	m[] = message buffer of 256 bytes
-	timeOut = time to wait for packet in us (0=dont wait)
-	returns:
-	-6 = CRC Error
-	-5 = I2C buffer overrun, at least 16 bytes received succesfully. rest is missing.
-	-4 = our buffer overrun (should not happen)
-	-3 = timeout
-	-2 = I2C Error
-	>0 = packet length*/
-int i2cReceive(char m[]);
 
 /* send message using I2CMaster
 	 message[] = the message to send

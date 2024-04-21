@@ -329,6 +329,131 @@ int i2cReadyToRead() {
 
 }
 
+// get message from I2C receive buffer
+int i2cReceive(char m[]) {
+    // todo implement end of packet check
+    int i=1;
+    uint64_t timeOut;
+
+    m[0]=*i2cSlaveSLV*2;
+
+    // a message should be finished receiving in 10ms
+    timeOut=*timer()+10000;
+
+    #ifdef debug
+    if (bug.rxMaxBuf<(*i2cSlaveFR&0xf800)>>11)
+        bug.rxMaxBuf=(*i2cSlaveFR&0xf800)>>11;
+    #endif
+
+    // while I2CSlave is receiving or byte availible
+    while( ((*i2cSlaveFR&0x20) != 0) || ((*i2cSlaveFR&2) == 0) ) {
+
+        // timeout
+        if (timeOut<*timer()) {
+            #ifdef debug
+            ERROR_PIN_HI;
+            printf("%.3f ",(float)*timer()/1000000);
+            printf("    Receive error: Timeout, hardware stays in receive mode for more then 10ms\n");
+            bug.rxTimeout++;
+            hexPrint(m,i);
+            ERROR_PIN_LO;
+            #endif
+            return ERROR_TIMEOUT;
+        }
+
+        // when a byte is availible, store it
+        if((*i2cSlaveFR&2) == 0) {
+            m[i]=*i2cSlave & 0xff;
+            i++;
+            // complete packet
+            if (i>2 && i>=m[2])
+                break;
+            if (i >= RECEIVE_BUFFER_LENGTH) {
+                #ifdef debug
+                ERROR_PIN_HI;
+                bug.rxWrongAdr++;
+                printf("%.3f ",(float)*timer()/1000000);
+                printf("    Receive error: Buffer overrun, size to large for the supplied buffer %d bytes.\n",i);
+                hexPrint(m,i);
+                ERROR_PIN_LO;
+                #endif
+                return ERROR_SWB_FULL;
+            }
+        } else {
+        // no byte availible receiving a new one will take 70us
+            #ifdef debug
+            RECEIVE_THREAD_RUNNING_PIN_LO;
+            #endif
+            usleep(10);
+            #ifdef debug
+            RECEIVE_THREAD_RUNNING_PIN_HI;
+            #endif
+        }
+    }
+
+    // listen for broadcast again
+    *i2cSlaveSLV=0x00;
+
+    m[i]=-1;
+
+    // nothing?
+    if (i==1)
+        return ERROR_OK;
+
+    // dgt3000 sends to 0 bytes after some packets
+    if (i==3 && m[1]==0 && m[2]==0)
+        return ERROR_OK;
+
+    // not from clock?
+    if (m[1]!=16) {
+        #ifdef debug
+        ERROR_PIN_HI;
+        bug.rxWrongAdr++;
+        printf("%.3f ",(float)*timer()/1000000);
+        printf("    Receive error: Wrong adress, Received message not from clock (16) but from %d.\n",m[1]);
+        hexPrint(m,i);
+        ERROR_PIN_LO;
+        #endif
+        return ERROR_NACK;
+    }
+
+    // errors?
+    if (*i2cSlaveRSR&1 || i<5 || i!=m[2] )  {
+        #ifdef debug
+        ERROR_PIN_HI;
+        printf("%.3f ",(float)*timer()/1000000);
+        if(*i2cSlaveRSR&1) {
+            printf("    Receive error: Hardware buffer full.\n");
+            bug.rxBufferFull++;
+        } else {
+            if (i<5)
+                printf("    Receive Error: Packet to small, %d bytes.\n",i);
+            else
+                printf("    Receive Error: Size mismatch, packet length is %d bytes but received %d bytes.\n",m[2],i);
+            bug.rxSizeMismatch++;
+        }
+        hexPrint(m,i);
+        ERROR_PIN_LO;
+        #endif
+        *i2cSlaveRSR=0;
+        return ERROR_HWB_FULL;
+    }
+
+    if (crc_calc(m)) {
+        #ifdef debug
+        ERROR_PIN_HI;
+        bug.rxCRCFault++;
+        printf("%.3f ",(float)*timer()/1000000);
+        printf("    Receive error: CRC Error\n");
+        hexPrint(m,i);
+        ERROR_PIN_LO;
+        #endif
+        return ERROR_CRC;
+    }
+
+    return i;
+}
+
 int checkCoreFreq() {
     FILE *fp;
     char line[100];

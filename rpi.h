@@ -1,6 +1,7 @@
 #ifndef RPI_H
 #define RPI_H
 
+#include "dgtpicom_dgt3000.h"
 #include <stdint.h>
 
 #define GPIO_BASE  0x200000
@@ -35,6 +36,22 @@ void i2cDestination(char);
 void i2cListenAddress(char);
 
 int i2cReadyToRead();
+
+/* get message from I2C receive buffer
+	m[] = message buffer of 256 bytes
+	timeOut = time to wait for packet in us (0=dont wait)
+	returns:
+	-6 = CRC Error
+	-5 = I2C buffer overrun, at least 16 bytes received succesfully. rest is missing.
+	-4 = our buffer overrun (should not happen)
+	-3 = timeout
+	-2 = I2C Error
+	>0 = packet length*/
+int i2cReceive(char m[]);
+
+/* configure IO pins and I2C Master and Slave
+	*/
+void i2cReset();
 
 int checkCoreFreq();
 

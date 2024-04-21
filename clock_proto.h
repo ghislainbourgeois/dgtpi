@@ -3,9 +3,6 @@
 
 #include <pthread.h>
 
-// receive buffer length, longest package is program 51,
-// debug can be modified in the future to max length of 255
-#define RECEIVE_BUFFER_LENGTH 256
 
 #define DGTRX_BUTTON_BUFFER_SIZE 16
 typedef struct {
