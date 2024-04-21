@@ -12,8 +12,6 @@
 extern volatile unsigned *gpio, *gpioset, *gpioclr, *gpioin;
 extern volatile unsigned *i2cSlave, *i2cSlaveRSR, *i2cSlaveSLV, *i2cSlaveCR, *i2cSlaveFR;
 extern volatile unsigned *i2cMaster, *i2cMasterS, *i2cMasterDLEN, *i2cMasterA, *i2cMasterFIFO, *i2cMasterDiv, *i2cMasterDel;
-extern uint32_t *timerh;
-extern uint32_t *timerl;
 
 #define SDA1IN ((*gpioin >> 2) & 1)    // SDA1 = GPIO 2
 #define SCL1IN ((*gpioin >> 3) & 1)    // SCL1 = GPIO 3
@@ -28,12 +26,15 @@ extern uint32_t *timerl;
 #define ERROR_PIN_LO *gpioclr = (1 << 22)
 #endif
 
-/* find out wich pi
-	returns:
-	0 = error
-	1 = Pi b+
-	2 = Pi 2 */
-int checkPiModel();
+int initHw();
+
+void stopHw();
+
+void i2cDestination(char);
+
+void i2cListenAddress(char);
+
+int i2cReadyToRead();
 
 int checkCoreFreq();
 

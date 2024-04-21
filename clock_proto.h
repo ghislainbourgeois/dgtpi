@@ -1,6 +1,8 @@
 #ifndef CLOCK_PROTO_H
 #define CLOCK_PROTO_H
 
+#include <pthread.h>
+
 // receive buffer length, longest package is program 51,
 // debug can be modified in the future to max length of 255
 #define RECEIVE_BUFFER_LENGTH 256
