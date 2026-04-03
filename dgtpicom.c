@@ -20,7 +20,6 @@
 
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -30,7 +29,7 @@
 
 #include "dgtpicom.h"
 #include "dgtpicom_dgt3000.h"
-#include "rpi.h"
+#include "hal.h"
 #include "clock_proto.h"
 
 #ifdef debug
@@ -48,7 +47,7 @@ int dgtpicom_init() {
     memset(&bug,0,sizeof(debug_t));
     #endif
 
-    initHw();
+    hal_init();
 
     dgtRx.on=1;
 
@@ -101,7 +100,7 @@ int dgtpicom_configure() {
                 #endif
                 return e;
             }
-            i2cReset();
+            hal.i2c_reset();
             continue;
         } else if (e==ERROR_CST || e==ERROR_LINES) {
             // message not acked, probably collision
@@ -307,7 +306,7 @@ int dgtpicom_off(char returnMode) {
 
 
     // send mode 25 message
-    e=i2cSend(mode25,0x00);
+    e=hal.i2c_send((const uint8_t *)mode25, 6, 0x00);
 
     // send succesful?
     if (e<0) {
@@ -323,7 +322,7 @@ int dgtpicom_off(char returnMode) {
 // Disable the I2C hardware.
 void dgtpicom_stop() {
     // stop listening to broadcasts
-    i2cListenAddress(0x10);
+    hal.i2c_listen_address(0x10);
 
     // stop thread
     dgtRx.on=0;
@@ -331,7 +330,7 @@ void dgtpicom_stop() {
     // wait for thread to finish
     pthread_join(receiveThread, NULL);
 
-    stopHw();
+    hal_cleanup();
 }
 
 // send a wake command to the dgt3000
@@ -340,9 +339,9 @@ int dgt3000Wake() {
     uint64_t t;
 
     // send wake
-    i2cDestination(40);
-    e=i2cSend(ping,0x00);
-    i2cDestination(8);
+    hal.i2c_set_destination(40);
+    e=hal.i2c_send((const uint8_t *)ping, 5, 0x00);
+    hal.i2c_set_destination(8);
 
     // succes? -> error. Wake messages should never get an Ack
     if (e==ERROR_OK) {
@@ -378,7 +377,7 @@ int dgt3000SetCC() {
     int e;
 
     // send setCC, error? retry
-    e=i2cSend(centralControll,0x10);
+    e=hal.i2c_send((const uint8_t *)centralControll, 5, 0x10);
 
     // send succedfull?
     if (e<0) {
@@ -431,7 +430,7 @@ int dgt3000Mode25() {
     crc_calc(mode25);
 
     // send mode 25 message
-    e=i2cSend(mode25, 0x10);
+    e=hal.i2c_send((const uint8_t *)mode25, 6,  0x10);
 
     // send succesful?
     if (e<0) {
@@ -478,7 +477,7 @@ int dgt3000EndDisplay() {
     int e;
 
     // send end Display
-    e=i2cSend(endDisplay,0x10);
+    e=hal.i2c_send((const uint8_t *)endDisplay, 5, 0x10);
 
     // send succesful?
     if (e<0) {
@@ -544,7 +543,7 @@ int dgt3000Display(char dm[]) {
     int e;
 
     // send the message
-    e=i2cSend(dm,0x00);
+    e=hal.i2c_send((const uint8_t *)dm, dm[2]+1, 0x00);
 
     // send succesful?
     if (e<0) {
@@ -591,7 +590,7 @@ int dgt3000Display(char dm[]) {
 int dgt3000SetNRun(char srm[]) {
     int e;
 
-    e=i2cSend(srm,0x10);
+    e=hal.i2c_send((const uint8_t *)srm, srm[2]+1, 0x10);
 
     // send succesful?
     if (e<0) {
@@ -650,9 +649,9 @@ void *dgt3000Receive(void *a) {
 
     while (dgtRx.on) {
         pthread_mutex_lock(&receiveMutex);
-        if (i2cReadyToRead()) {
+        if (hal.i2c_receive_ready()) {
 
-            e=i2cReceive(rm);
+            e=hal.i2c_receive((uint8_t *)rm, (uint8_t)RECEIVE_BUFFER_LENGTH);
 
             #ifdef debug2
             if (e>0) {
@@ -813,7 +812,7 @@ int dgt3000GetAck(char adr, char cmd, uint64_t timeOut) {
     pthread_mutex_lock(&receiveMutex);
 
     // listen to given adress
-    i2cListenAddress(adr);
+    hal.i2c_listen_address(adr);
 
     // check until timeout
     timeOut+=*timer();
@@ -829,7 +828,7 @@ int dgt3000GetAck(char adr, char cmd, uint64_t timeOut) {
     }
 
     // listen for broadcast again
-    i2cListenAddress(0x00);
+    hal.i2c_listen_address(0x00);
 
     pthread_mutex_unlock(&receiveMutex);
 
@@ -840,170 +839,9 @@ int dgt3000GetAck(char adr, char cmd, uint64_t timeOut) {
 }
 
 // send message using I2CMaster
+// send message using I2CMaster (wrapper for hal)
 int i2cSend(char message[], char ackAdr) {
-    int i, n;
-    uint64_t timeOut;
-
-    // set length
-    *i2cMasterDLEN = message[2]-1;
-
-    // clear buffer
-    *i2cMaster = 0x10;
-
-    #ifdef debug2
-    printf("-> %02x ", message[0]);
-    #endif
-
-    // fill the buffer
-    for (n=1;n<message[2] && *i2cMasterS&0x10;n++) {
-        #ifdef debug2
-        printf("%02x ", message[n]);
-        if(n == message[2]-1)
-            printf("= %s\n",packetDescriptor[message[3]-1]);
-        #endif
-        *i2cMasterFIFO=message[n];
-    }
-
-    // check 256 times if the bus is free. At least for 50us because the clock will send waiting messages 50 us after the previeus one.
-    timeOut=*timer() + 10000;   // bus should be free in 10ms
-    #ifdef debug
-    WAIT_FOR_FREE_BUS_PIN_HI;
-    #endif
-    for(i=0;i<256;i++) {
-        // lines low (data is being send, or plug half inserted, or PI I2C peripheral crashed or ...)
-        if ((SCL1IN==0) || (SDA1IN==0)) {
-            i=0;
-        }
-        if ( ((*i2cSlaveFR&0x20)!=0) || ((*i2cSlaveFR&2)==0) ) {
-            i=0;
-        }
-        // timeout waiting for bus free, I2C Error (or someone pushes 500 buttons/seccond)
-        if (*timer()>timeOut) {
-            #ifdef debug
-            printf("%.3f ",(float)*timer()/1000000);
-            printf("    Send error: Bus free timeout, waited more then 10ms for bus to be free\n");
-            if(SCL1IN==0)
-                printf("                SCL low. Remove jack?\n");
-            if(SDA1IN==0)
-                printf("                SDA low. Remove jack?\n");
-            if((*i2cSlaveFR&0x20) != 0)
-                printf("                I2C Slave receive busy, is the receive thread running?\n");
-            if((*i2cSlaveFR&2) == 0)
-                printf("                I2C Slave receive fifo not emtpy, is the receive thread running?\n");
-            #endif
-            return ERROR_TIMEOUT;
-        }
-    }
-    pthread_mutex_lock(&receiveMutex);
-    #ifdef debug
-    WAIT_FOR_FREE_BUS_PIN_LO;
-    #endif
-
-    // clear ack and hello so we can receive a new ack or hello
-    dgtRx.ack[0]=0;
-    dgtRx.hello=0;
-
-    // dont let the slave listen to 0 (wierd errors)?
-    // listen to ack adress
-    *i2cSlaveSLV = ackAdr;
-
-    // start sending
-    *i2cMasterS = 0x302;
-    *i2cMaster = 0x8080;
-
-    // write the rest of the message
-    for (; n<message[2]; n++) {
-        // wait for space in the buffer
-        timeOut=*timer() + 10000;   // should be done in 10ms
-        while((*i2cMasterS&0x10)==0) {
-            if (*i2cMasterS&2) {
-                *i2cSlaveSLV = 0x00;
-                #ifdef debug
-                printf("%.3f ",(float)*timer()/1000000);
-                printf("    Send error: done before complete send\n");
-                #endif
-                break;
-            }
-            if (*timer()>timeOut) {
-                *i2cSlaveSLV = 0x00;
-                #ifdef debug
-                printf("%.3f ",(float)*timer()/1000000);
-                printf("    Send error: Buffer free timeout, waited more then 10ms for space in the buffer\n");
-                #endif
-                pthread_mutex_unlock(&receiveMutex);
-                return ERROR_TIMEOUT;
-            }
-        }
-        if (*i2cMasterS&2)
-            break;
-        #ifdef debug2
-        printf("%02x ", message[n]);
-        if(n == message[2]-1)
-            printf("= %s\n",packetDescriptor[message[3]-1]);
-        #endif
-        *i2cMasterFIFO=message[n];
-    }
-
-    // wait for done
-    timeOut=*timer() + 10000;   // should be done in 10ms
-    while ((*i2cMasterS&2)==0)
-        if (*timer()>timeOut) {
-            *i2cSlaveSLV = 0x00;
-            #ifdef debug
-            printf("%.3f ",(float)*timer()/1000000);
-            printf("    Send error: done timeout, waited more then 10ms for message to be finished sending\n");
-            #endif
-            pthread_mutex_unlock(&receiveMutex);
-            return ERROR_TIMEOUT;
-        }
-
-    // succes?
-    if ((*i2cMasterS&0x300)==0) {
-        pthread_mutex_unlock(&receiveMutex);
-        return ERROR_OK;
-    }
-
-    *i2cSlaveSLV = 0x00;
-
-    // collision or clock off
-    if (*i2cMasterS&0x100) {
-        // reset error flags
-        *i2cMasterS=0x100;
-        #ifdef debug
-        printf("%.3f ",(float)*timer()/1000000);
-        printf("    Send error: byte not Acked\n");
-        #endif
-    }
-    if (*i2cMasterS&0x200) {
-        // reset error flags
-        *i2cMasterS=0x200;
-        #ifdef debug
-        printf("%.3f ",(float)*timer()/1000000);
-        printf("    Send error: collision, clock stretch timeout\n");
-        #endif
-
-        // probably collision
-        pthread_mutex_unlock(&receiveMutex);
-        return ERROR_CST;
-    }
-
-    // clear fifo
-    *i2cMaster|=0x10;
-
-    if ((SCL1IN==0) || (SDA1IN==0) || ((*i2cSlaveFR&0x20)!=0) || ((*i2cSlaveFR&2)==0)) {
-        #ifdef debug
-        printf("%.3f ",(float)*timer()/1000000);
-        printf("    Send error: collision, lines busy after send.\n");
-        #endif
-
-        // probably collision
-        pthread_mutex_unlock(&receiveMutex);
-        return ERROR_LINES;
-    }
-
-    // probably clock off
-    pthread_mutex_unlock(&receiveMutex);
-    return ERROR_SILENT;
+    return hal.i2c_send((const uint8_t *)message, message[2]+1, ackAdr);
 }
 
 // print hex values
