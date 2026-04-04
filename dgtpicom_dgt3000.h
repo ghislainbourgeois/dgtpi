@@ -51,7 +51,6 @@
 #define	ERROR_OK		0
  
 // receive buffer length, longest package is program 51,
-// debug can be modified in the future to max length of 255
 #define RECEIVE_BUFFER_LENGTH 256
 
 //*** helping functions ***//

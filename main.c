@@ -4,14 +4,9 @@
 
 #include "dgtpicom.h"
 #include "dgtpicom_dgt3000.h"
-#include "debug.h"
 #include "rpi.h"
 
 int ww;
-
-#ifdef debug
-extern debug_t bug;
-#endif
 
 // while loop
 void *wl(void *x) {
@@ -26,9 +21,6 @@ void *wl(void *x) {
             if (e<0)
                 printf("%d: Display failed!\n",i);
             i++;
-            #ifdef debug
-            bug.sendTotal++;
-            #endif
         } else {
             usleep(10000);
         }
@@ -123,17 +115,8 @@ int main (int argc, char *argv[]) {
 
 
     } else {
-        #ifdef debug
-        printf("  %.3f ",(float)*timer()/1000000);
-        printf("started\n");
-        usleep(10000);
-        ww=1;
-        pthread_t w;
-        pthread_create(&w, NULL, wl, NULL);
-        #else
         if ( dgtpicom_off(1) < 0 )
             dgtpicom_off(1);
-        #endif
         but=tim=0;
         while(1) {
             if (dgtpicom_get_button_message(&but,&tim)) {
@@ -155,18 +138,6 @@ int main (int argc, char *argv[]) {
     }
 
     dgtpicom_stop();
-
-    #ifdef debug
-    printf("%.3f ",(float)*timer()/1000000);
-    printf("After %d messages:\n",bug.sendTotal);
-    printf("Send failed: display=%d, endDisplay=%d, changeState=%d, setCC=%d, setNRun=%d\n",
-                bug.displaySF, bug.endDisplaySF, bug.changeStateSF, bug.setCCSF, bug.setNRunSF);
-    printf("Ack failed : display=%d, endDisplay=%d, changeState=%d, setCC=%d, setNRun=%d\n",
-                bug.displayAF, bug.endDisplayAF, bug.changeStateAF, bug.setCCAF, bug.setNRunAF);
-    printf("Recieve Errors: timeout=%d, wrongAdr=%d, bufferFull=%d, sizeMismatch=%d, CRCFault=%d\n",
-            bug.rxTimeout, bug.rxWrongAdr, bug.rxBufferFull, bug.rxSizeMismatch, bug.rxCRCFault);
-    printf("Max recieve buffer size=%d\n",bug.rxMaxBuf);
-    #endif
 
     // succes?
     return ERROR_OK;

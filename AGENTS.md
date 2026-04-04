@@ -6,12 +6,6 @@
 # Build release version
 make
 
-# Build with basic debug flags
-make debug
-
-# Build with extensive debug flags
-make debug2
-
 # Clean and rebuild
 make clean && make
 ```
@@ -22,16 +16,13 @@ make clean && make
 
 This project does not have automated tests. To test functionality:
 
-1. Build with debug flags: `make debug` or `make debug2`
-2. Run with sudo (required for I2C hardware access): `sudo ./dgtpicom`
-3. Test modes:
+1. Run with sudo (required for I2C hardware access): `sudo ./dgtpicom`
+2. Test modes:
    - Display text: `sudo ./dgtpicom "message" [beep] [ldots] [rdots]`
    - Run clock: `sudo ./dgtpicom [L/l/R/r] [lh] [lm] [ls] [rh] [rm] [rs]`
    - Interactive mode: `sudo ./dgtpicom` (press buttons to interact)
-4. Use `~` for spinning text demo
-5. Use `*` for animation demo
-
-Debug output includes: send failures, ack failures, receive errors, max buffer usage.
+3. Use `~` for spinning text demo
+4. Use `*` for animation demo
 
 ## Code Style Guidelines
 
@@ -44,15 +35,14 @@ Debug output includes: send failures, ack failures, receive errors, max buffer u
 
 ### Naming Conventions
 - Functions: `dgtpicom_*`, `dgt3000_*`, `i2c_*` prefixes
-- Types: camelCase (`dgtReceive_t`, `debug_t`)
+- Types: camelCase (`dgtReceive_t`)
 - Constants: SCREAMING_SNAKE_CASE (`ERROR_OK`, `DGTRX_BUTTON_BUFFER_SIZE`)
-- Global variables: `dgtRx`, `bug` (debug struct)
+- Global variables: `dgtRx`
 
 ### Error Handling
 - Return codes from -10 to 0 (0 = success)
 - Retry logic: most functions retry up to 3 times
 - Critical errors stop execution and return immediately
-- Debug mode prints detailed error messages with timestamps
 
 ### Formatting
 - 4-space indentation (actual indentation in codebase uses tabs)
@@ -64,12 +54,10 @@ Debug output includes: send failures, ack failures, receive errors, max buffer u
 ### Comments
 - Block comments for header documentation (copyright/license)
 - Inline comments sparingly, only for complex logic
-- Debug-specific code wrapped in `#ifdef debug` blocks
 
 ### Header Files
 - Include guards: `#ifndef NAME_H #define NAME_H #endif`
 - Declare functions in `.h`, implement in `.c`
-- extern declarations for global variables in debug mode
 
 ### Key Files
 - `dgtpicom.c` / `dgtpicom.h`: Main API

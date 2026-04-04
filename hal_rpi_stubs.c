@@ -8,11 +8,8 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-// Global HAL instance - will be populated with current implementations
-hal_ops_t hal;
-
 // Extracted from rpi.c - hardware initialization
-static int hal_rpi_init_hardware(void) {
+int hal_rpi_init_hardware(void) {
     return initHw();
 }
 
@@ -151,12 +148,12 @@ static int hal_rpi_check_core_freq_mhz(void) {
     return checkCoreFreq();
 }
 
-static void hal_rpi_stop_hardware(void) {
+void hal_rpi_stop_hardware(void) {
     stopHw();
 }
 
-// Define HAL instance with all current implementations
-hal_ops_t hal = {
+// Export HAL instance for runtime detection (Pi1-Pi4)
+hal_ops_t hal_rpi_stubs_ops = {
     .i2c_send = hal_rpi_i2c_send,
     .i2c_receive_ready = hal_rpi_i2c_receive_ready,
     .i2c_receive = hal_rpi_i2c_receive,
@@ -166,26 +163,3 @@ hal_ops_t hal = {
     .get_timer_us = hal_rpi_get_timer_us,
     .check_core_freq_mhz = hal_rpi_check_core_freq_mhz,
 };
-
-int hal_init(void) {
-    return hal_rpi_init_hardware();
-}
-
-void hal_cleanup(void) {
-    hal_rpi_stop_hardware();
-}
-
-// Get platform name
-const char* hal_get_platform_name(void) {
-    // Use checkPiModel from rpi.c
-    extern int checkPiModel(void);
-    int model = checkPiModel();
-
-    switch (model) {
-        case 4: return "Raspberry Pi 4";
-        case 3: return "Raspberry Pi 3";
-        case 2: return "Raspberry Pi 2";
-        case 1: return "Raspberry Pi 1/B+/Zero";
-        default: return "Unknown";
-    }
-}
