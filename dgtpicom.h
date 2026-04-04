@@ -22,16 +22,13 @@
 
 /* configuration values
  */
-#define	DGTPICOM_KEY_DELAY	800000
-#define DGTPICOM_KEY_REPEAT	400000
-
-
+#define DGTPICOM_KEY_DELAY 800000
+#define DGTPICOM_KEY_REPEAT 400000
 
 /* Return codes for all funcitons are at the bottom of this doccument.
  * All functions try three times, the error is the reason why the third
  * try failed.
  */
-
 
 /* Get direct access to BCM2708/9 chip.
  *   Run this first and only once (or again after a dgtpicom_stop())
@@ -50,13 +47,13 @@ int dgtpicom_configure();
  *   lm/rm = left/right minutes
  *   ls/rs = left/right seconds
  */
-int dgtpicom_set_and_run(char lr, char lh, char lm, char ls,
-					char rr, char rh, char rm, char rs);
+int dgtpicom_set_and_run(char lr, char lh, char lm, char ls, char rr, char rh,
+                         char rm, char rs);
 
 /* Send set and run command to the dgt3000 with current clock values.
  *   lr/rr = left/right run mode, 0=stop, 1=count down, 2=count up
  */
-int dgtpicom_run(char lr, char rr);				
+int dgtpicom_run(char lr, char rr);
 
 /* Set a text message on the dgt3000.
  *   text = message to display
@@ -122,7 +119,6 @@ int dgtpicom_off(char returnMode);
  */
 void dgtpicom_stop();
 
-
 /* return codes:
  *   -10= no direct access to memory, run as root
  *   -9 = receive failed, software buffer overrun, should not happen
@@ -133,7 +129,7 @@ void dgtpicom_stop();
  *   -4 = sending failed, clock stretch timeout, probably collision
  *   -3 = sending failed, no response, probably clock off
  *   -2 = no ack received
- *   -1 = negative ack received, 
+ *   -1 = negative ack received,
  *    0 = succes!
  */
 

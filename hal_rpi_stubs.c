@@ -1,156 +1,146 @@
-#include "hal.h"
-#include "rpi.h"
 #include "clock_proto.h"
 #include "dgtpicom_dgt3000.h"
-#include <sys/mman.h>
-#include <stdint.h>
-#include <unistd.h>
+#include "hal.h"
+#include "rpi.h"
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 // Extracted from rpi.c - hardware initialization
-int hal_rpi_init_hardware(void) {
-    return initHw();
-}
+int hal_rpi_init_hardware(void) { return initHw(); }
 
 // Copy of i2cSend from dgtpicom.c (line 843-1007)
 // This is the complex I2C send implementation
-static int hal_rpi_i2c_send(const uint8_t *message, uint8_t msg_length, uint8_t ack_address) {
-    int i, n;
-    uint64_t timeOut;
-    char m[256];
-    
-    // Convert uint8_t to char for compatibility
-    for (i = 0; i < msg_length; i++) {
-        m[i] = message[i];
+static int hal_rpi_i2c_send(const uint8_t *message, uint8_t msg_length,
+                            uint8_t ack_address) {
+  int i, n;
+  uint64_t timeOut;
+  char m[256];
+
+  // Convert uint8_t to char for compatibility
+  for (i = 0; i < msg_length; i++) {
+    m[i] = message[i];
+  }
+
+  // set length
+  *i2cMasterDLEN = m[2] - 1;
+
+  // clear buffer
+  *i2cMaster = 0x10;
+
+  // fill the buffer
+  for (n = 1; n < m[2] && *i2cMasterS & 0x10; n++) {
+    *i2cMasterFIFO = m[n];
+  }
+
+  // check 256 times if the bus is free
+  timeOut = *timer() + 10000;
+  for (i = 0; i < 256; i++) {
+    if ((SCL1IN == 0) || (SDA1IN == 0)) {
+      i = 0;
     }
-
-    // set length
-    *i2cMasterDLEN = m[2]-1;
-
-    // clear buffer
-    *i2cMaster = 0x10;
-
-    // fill the buffer
-    for (n=1;n<m[2] && *i2cMasterS&0x10;n++) {
-        *i2cMasterFIFO=m[n];
+    if (((*i2cSlaveFR & 0x20) != 0) || ((*i2cSlaveFR & 2) == 0)) {
+      i = 0;
     }
-
-    // check 256 times if the bus is free
-    timeOut=*timer() + 10000;
-    for(i=0;i<256;i++) {
-        if ((SCL1IN==0) || (SDA1IN==0)) {
-            i=0;
-        }
-        if ( ((*i2cSlaveFR&0x20)!=0) || ((*i2cSlaveFR&2)==0) ) {
-            i=0;
-        }
-        if (*timer()>timeOut) {
-            return ERROR_TIMEOUT;
-        }
+    if (*timer() > timeOut) {
+      return ERROR_TIMEOUT;
     }
-    pthread_mutex_lock(&receiveMutex);
+  }
+  pthread_mutex_lock(&receiveMutex);
 
-    // clear ack and hello so we can receive a new ack or hello
-    dgtRx.ack[0]=0;
-    dgtRx.hello=0;
+  // clear ack and hello so we can receive a new ack or hello
+  dgtRx.ack[0] = 0;
+  dgtRx.hello = 0;
 
-    // listen to ack adress
-    *i2cSlaveSLV = ack_address;
+  // listen to ack adress
+  *i2cSlaveSLV = ack_address;
 
-    // start sending
-    *i2cMasterS = 0x302;
-    *i2cMaster = 0x8080;
+  // start sending
+  *i2cMasterS = 0x302;
+  *i2cMaster = 0x8080;
 
-    // write the rest of the message
-    for (; n<m[2]; n++) {
-        timeOut=*timer() + 10000;
-        while((*i2cMasterS&0x10)==0) {
-            if (*i2cMasterS&2) {
-                *i2cSlaveSLV = 0x00;
-                break;
-            }
-            if (*timer()>timeOut) {
-                *i2cSlaveSLV = 0x00;
-                pthread_mutex_unlock(&receiveMutex);
-                return ERROR_TIMEOUT;
-            }
-        }
-        if (*i2cMasterS&2)
-            break;
-        *i2cMasterFIFO=m[n];
-    }
-
-    // wait for done
-    timeOut=*timer() + 10000;
-    while ((*i2cMasterS&2)==0)
-        if (*timer()>timeOut) {
-            *i2cSlaveSLV = 0x00;
-            pthread_mutex_unlock(&receiveMutex);
-            return ERROR_TIMEOUT;
-        }
-
-    // succes?
-    if ((*i2cMasterS&0x300)==0) {
+  // write the rest of the message
+  for (; n < m[2]; n++) {
+    timeOut = *timer() + 10000;
+    while ((*i2cMasterS & 0x10) == 0) {
+      if (*i2cMasterS & 2) {
+        *i2cSlaveSLV = 0x00;
+        break;
+      }
+      if (*timer() > timeOut) {
+        *i2cSlaveSLV = 0x00;
         pthread_mutex_unlock(&receiveMutex);
-        return ERROR_OK;
+        return ERROR_TIMEOUT;
+      }
+    }
+    if (*i2cMasterS & 2)
+      break;
+    *i2cMasterFIFO = m[n];
+  }
+
+  // wait for done
+  timeOut = *timer() + 10000;
+  while ((*i2cMasterS & 2) == 0)
+    if (*timer() > timeOut) {
+      *i2cSlaveSLV = 0x00;
+      pthread_mutex_unlock(&receiveMutex);
+      return ERROR_TIMEOUT;
     }
 
-    *i2cSlaveSLV = 0x00;
-
-    // collision or clock off
-    if (*i2cMasterS&0x100) {
-        *i2cMasterS=0x100;
-    }
-    if (*i2cMasterS&0x200) {
-        *i2cMasterS=0x200;
-        pthread_mutex_unlock(&receiveMutex);
-        return ERROR_CST;
-    }
-
-    // clear fifo
-    *i2cMaster|=0x10;
-
-    if ((SCL1IN==0) || (SDA1IN==0) || ((*i2cSlaveFR&0x20)!=0) || ((*i2cSlaveFR&2)==0)) {
-        pthread_mutex_unlock(&receiveMutex);
-        return ERROR_LINES;
-    }
-
+  // succes?
+  if ((*i2cMasterS & 0x300) == 0) {
     pthread_mutex_unlock(&receiveMutex);
-    return ERROR_SILENT;
+    return ERROR_OK;
+  }
+
+  *i2cSlaveSLV = 0x00;
+
+  // collision or clock off
+  if (*i2cMasterS & 0x100) {
+    *i2cMasterS = 0x100;
+  }
+  if (*i2cMasterS & 0x200) {
+    *i2cMasterS = 0x200;
+    pthread_mutex_unlock(&receiveMutex);
+    return ERROR_CST;
+  }
+
+  // clear fifo
+  *i2cMaster |= 0x10;
+
+  if ((SCL1IN == 0) || (SDA1IN == 0) || ((*i2cSlaveFR & 0x20) != 0) ||
+      ((*i2cSlaveFR & 2) == 0)) {
+    pthread_mutex_unlock(&receiveMutex);
+    return ERROR_LINES;
+  }
+
+  pthread_mutex_unlock(&receiveMutex);
+  return ERROR_SILENT;
 }
 
-static int hal_rpi_i2c_receive_ready(void) {
-    return i2cReadyToRead();
-}
+static int hal_rpi_i2c_receive_ready(void) { return i2cReadyToRead(); }
 
 static int hal_rpi_i2c_receive(uint8_t *buffer, uint8_t max_length) {
-    return i2cReceive((char *)buffer);
+  return i2cReceive((char *)buffer);
 }
 
 static void hal_rpi_i2c_set_destination(uint8_t address) {
-    i2cDestination(address);
+  i2cDestination(address);
 }
 
 static void hal_rpi_i2c_listen_address(uint8_t address) {
-    i2cListenAddress(address);
+  i2cListenAddress(address);
 }
 
-static void hal_rpi_i2c_reset(void) {
-    i2cReset();
-}
+static void hal_rpi_i2c_reset(void) { i2cReset(); }
 
-static uint64_t hal_rpi_get_timer_us(void) {
-    return *timer();
-}
+static uint64_t hal_rpi_get_timer_us(void) { return *timer(); }
 
-static int hal_rpi_check_core_freq_mhz(void) {
-    return checkCoreFreq();
-}
+static int hal_rpi_check_core_freq_mhz(void) { return checkCoreFreq(); }
 
-void hal_rpi_stop_hardware(void) {
-    stopHw();
-}
+void hal_rpi_stop_hardware(void) { stopHw(); }
 
 // Export HAL instance for runtime detection (Pi1-Pi4)
 hal_ops_t hal_rpi_stubs_ops = {
