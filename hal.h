@@ -39,4 +39,7 @@ int hal_init(void);
 // Cleanup hardware
 void hal_cleanup(void);
 
+// Get platform name (for testing)
+const char* hal_get_platform_name(void);
+
 #endif

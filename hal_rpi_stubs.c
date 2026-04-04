@@ -174,3 +174,18 @@ int hal_init(void) {
 void hal_cleanup(void) {
     hal_rpi_stop_hardware();
 }
+
+// Get platform name
+const char* hal_get_platform_name(void) {
+    // Use checkPiModel from rpi.c
+    extern int checkPiModel(void);
+    int model = checkPiModel();
+
+    switch (model) {
+        case 4: return "Raspberry Pi 4";
+        case 3: return "Raspberry Pi 3";
+        case 2: return "Raspberry Pi 2";
+        case 1: return "Raspberry Pi 1/B+/Zero";
+        default: return "Unknown";
+    }
+}
