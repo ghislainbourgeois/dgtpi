@@ -4,7 +4,7 @@
 
 #include "dgtpicom.h"
 #include "dgtpicom_dgt3000.h"
-#include "rpi.h"
+#include "hal.h"
 
 int ww;
 
@@ -91,16 +91,16 @@ int main(int argc, char *argv[]) {
     } else if (argv[1][0] == '*') {
       while (1) {
         if (dgtpicom_set_text("  DGT PI  -", beep, ldots, rdots) != ERROR_OK)
-          i2cReset();
+          hal.i2c_reset();
         usleep(200000);
         if (dgtpicom_set_text("  DGT PI  ||", beep, ldots, rdots) != ERROR_OK)
-          i2cReset();
+          hal.i2c_reset();
         usleep(200000);
         if (dgtpicom_set_text("  DGT PI  |", beep, ldots, rdots) != ERROR_OK)
-          i2cReset();
+          hal.i2c_reset();
         usleep(200000);
         if (dgtpicom_set_text("  DGT PI  /", beep, ldots, rdots) != ERROR_OK)
-          i2cReset();
+          hal.i2c_reset();
         usleep(200000);
       }
     } else {
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
         if (but == 0x20) {
           break;
         }
-        printf("%.3f ", (float)*timer() / 1000000);
+        printf("%.3f ", (float)hal.get_timer_us() / 1000000);
         printf("button=%02x, time=%d\n", but, tim);
       }
 

@@ -53,7 +53,6 @@
 #define RECEIVE_BUFFER_LENGTH 256
 
 //*** helping functions ***//
-uint64_t *timer();
 
 /* calculate checksum and put it in the last byte
  *buffer = pointer to buffer */

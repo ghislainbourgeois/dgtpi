@@ -9,6 +9,12 @@
 
 // Hardware register access (abstracted)
 typedef struct {
+  // Initialization (called by hal_init with platform id)
+  int (*init)(int platform);
+
+  // Cleanup (called by hal_cleanup)
+  void (*cleanup)(void);
+
   // I2C master operations (for sending messages)
   int (*i2c_send)(const uint8_t *message, uint8_t length, uint8_t ack_address);
 
@@ -26,6 +32,9 @@ typedef struct {
 
   // Clock frequency check
   int (*check_core_freq_mhz)(void);
+
+  // Platform name (static string)
+  const char *name;
 
 } hal_ops_t;
 

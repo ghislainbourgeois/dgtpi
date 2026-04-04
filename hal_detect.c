@@ -1,19 +1,10 @@
 #include "hal.h"
-#include "rpi.h"
+#include "hal_detect.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-extern hal_ops_t hal_rpi5_ops;
-extern hal_ops_t hal_rpi_stubs_ops;
-extern void hal_rpi_stop_hardware(void);
-extern int hal_rpi_init_hardware(void);
-
-int hal_rpi5_init(void);
-void hal_rpi5_cleanup(void);
-
 static int current_platform = 0;
-static void (*platform_cleanup)(void) = NULL;
 
 hal_ops_t hal;
 
@@ -75,26 +66,32 @@ int hal_init(void) {
   switch (current_platform) {
   case 5:
     hal = hal_rpi5_ops;
-    platform_cleanup = hal_rpi5_cleanup;
-    return hal_rpi5_init();
+    break;
   case 4:
   case 3:
   case 2:
     hal = hal_rpi_stubs_ops;
-    setPiModel(current_platform);
-    platform_cleanup = hal_rpi_stop_hardware;
-    return hal_rpi_init_hardware();
+    break;
   default:
     return -1;
   }
+
+  if (hal.init) {
+    return hal.init(current_platform);
+  }
+  return 0;
 }
 
 void hal_cleanup(void) {
-  if (platform_cleanup)
-    platform_cleanup();
+  if (hal.cleanup) {
+    hal.cleanup();
+  }
 }
 
 const char *hal_get_platform_name(void) {
+  if (hal.name) {
+    return hal.name;
+  }
   if (current_platform == 0) {
     current_platform = detect_pi_version();
   }

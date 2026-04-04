@@ -1,4 +1,8 @@
+#include "clock_proto.h"
+#include "dgtpicom_dgt3000.h"
+#include "hal.h"
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,10 +10,16 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "dgtpicom_dgt3000.h"
-#include "rpi.h"
+// Forward declarations
+static int checkCoreFreq(void);
+static uint64_t hal_rpi_get_timer_us(void);
+static void i2cDestination(char addr);
+static void i2cListenAddress(char addr);
+static int i2cReadyToRead(void);
+static int i2cReceive(char m[]);
+static void i2cReset(void);
 
-// pointers to BCM2708/9 registers
+// Hardware register pointers (from rpi.c)
 volatile unsigned *gpio, *gpioset, *gpioclr, *gpioin;
 volatile unsigned *i2cSlave, *i2cSlaveRSR, *i2cSlaveSLV, *i2cSlaveCR,
     *i2cSlaveFR;
@@ -19,48 +29,16 @@ uint32_t *timerh;
 uint32_t *timerl;
 char piModel;
 
-void setPiModel(int model) { piModel = model; }
+#define GPIO_BASE 0x200000
+#define TIMER_BASE 0x003000
+#define I2C_SLAVE_BASE 0x214000
+#define I2C_MASTER_BASE 0x804000
 
-// read register
+#define SDA1IN ((*gpioin >> 2) & 1)
+#define SCL1IN ((*gpioin >> 3) & 1)
+
 static unsigned int dummyRead(volatile unsigned int *addr) { return *addr; }
 
-/* find out which pi
-        returns:
-        0 = error
-        1 = Pi b+
-        2 = Pi 2
-        3 = Pi 3
-        4 = Pi 4
-*/
-int checkPiModel() {
-  FILE *cpuFd;
-  char line[120];
-
-  if ((cpuFd = fopen("/proc/cpuinfo", "r")) == NULL)
-    ;
-
-  // looking for the revision....
-  while (fgets(line, 120, cpuFd) != NULL)
-    if (strncmp(line, "Revision", 8) == 0) {
-      if (line[13] == '3') { // BCM2838
-        fclose(cpuFd);
-        return 4;                   // PI 4b
-      } else if (line[13] == '2') { // BCM2837
-        fclose(cpuFd);
-        return 3;                   // PI 3b(+)
-      } else if (line[13] == '1') { // BCM2836
-        fclose(cpuFd);
-        return 2; // PI 2b
-      } else {    // BCM2835
-        fclose(cpuFd);
-        return 1; // PI a, b, zero (+)
-      }
-    }
-  fclose(cpuFd);
-  return 0;
-}
-
-// configure IO pins and I2C Master and Slave
 void i2cReset() {
   int freq;
 
@@ -68,44 +46,32 @@ void i2cReset() {
   *i2cMaster = 0x10;
   *i2cMaster = 0x0000;
 
-  // pinmode GPIO2,GPIO3=input (togle via input to reset i2C master(sometimes
-  // hangs))
   *gpio &= 0xfffff03f;
   if (piModel == 4) {
-    // pinmode GPIO10,GPIO11=input (togle via input to reset)
     *(gpio + 1) &= 0xffffffc0;
   } else {
-    // pinmode GPIO18,GPIO19=input (togle via input to reset)
     *(gpio + 1) &= 0xc0ffffff;
   }
-  // send something in case master hangs
   *i2cMasterDLEN = 0;
   while ((*i2cSlaveFR & 2) == 0) {
     dummyRead(i2cSlave);
   }
-  usleep(2000); // not tested! some delay maybe needed
+  usleep(2000);
   *i2cSlaveCR = 0x285;
   *i2cMasterS = 0x302;
   *i2cMaster = 0x8010;
-  // pinmode GPIO2,GPIO3=ALT0
   *gpio |= 0x900;
   if (piModel == 4) {
-    // pinmode GPIO10,GPIO11=ALT3
     *(gpio + 1) |= 0x0000003f;
   } else {
-    // pinmode GPIO18,GPIO19=ALT3
     *(gpio + 1) |= 0x3f000000;
   }
 
-  usleep(1000); // not tested! some delay maybe needed
+  usleep(1000);
 
-  // set i2c slave control register to break and off
   *i2cSlaveCR = 0x80;
-  // set i2c slave control register to enable: receive, i2c, device
   *i2cSlaveCR = 0x205;
-  // set i2c slave address 0x00 to listen to broadcasts
   *i2cSlaveSLV = 0x0;
-  // reset errors
   *i2cSlaveRSR = 0;
 
   freq = checkCoreFreq();
@@ -114,14 +80,12 @@ void i2cReset() {
     *i2cMasterDel = 0x600060;
 }
 
-// Get access to required hardware and initialize it
-int initHw() {
+int initHw(int platform) {
   int memfd;
   uint32_t base;
   void *gpio_map, *timer_map, *i2c_slave_map, *i2c_master_map;
 
-  if (piModel == 0)
-    piModel = checkPiModel();
+  piModel = platform;
   if (piModel == 4)
     base = 0xfe000000;
   else if (piModel == 1)
@@ -150,24 +114,20 @@ int initHw() {
     return ERROR_MEM;
   }
 
-  // GPIO pointers
   gpio = (volatile unsigned *)gpio_map;
-  gpioset = gpio + 7;  // set bit register offset 28
-  gpioclr = gpio + 10; // clr bit register
-  gpioin = gpio + 13;  // read all bits register
+  gpioset = gpio + 7;
+  gpioclr = gpio + 10;
+  gpioin = gpio + 13;
 
-  // timer pointer
   timerh = (uint32_t *)((char *)timer_map + 4);
   timerl = (uint32_t *)((char *)timer_map + 8);
 
-  // i2c slave pointers
   i2cSlave = (volatile unsigned *)i2c_slave_map;
   i2cSlaveRSR = i2cSlave + 1;
   i2cSlaveSLV = i2cSlave + 2;
   i2cSlaveCR = i2cSlave + 3;
   i2cSlaveFR = i2cSlave + 4;
 
-  // i2c master pointers
   i2cMaster = (volatile unsigned *)i2c_master_map;
   i2cMasterS = i2cMaster + 1;
   i2cMasterDLEN = i2cMaster + 2;
@@ -176,8 +136,6 @@ int initHw() {
   i2cMasterDiv = i2cMaster + 5;
   i2cMasterDel = i2cMaster + 6;
 
-  // check wiring
-  // configured as an output? probably in use for something else
   if ((*gpio & 0x1c0) == 0x40) {
     return ERROR_LINES;
   }
@@ -199,17 +157,13 @@ int initHw() {
       return ERROR_LINES;
     }
   }
-  // pinmode GPIO2,GPIO3=input
   *gpio &= 0xfffff03f;
   if (piModel == 4) {
-    // pinmode GPIO10,GPIO11=input
     *(gpio + 1) &= 0xffffffc0;
   } else {
-    // pinmode GPIO18,GPIO19=input
     *(gpio + 1) &= 0xc0ffffff;
   }
   usleep(1);
-  // all pins hi through pullup?
   if (piModel == 4) {
     if ((*gpioin & 0x0c0c) != 0x0c0c) {
       return ERROR_LINES;
@@ -226,16 +180,12 @@ int initHw() {
 }
 
 void stopHw() {
-  // disable i2cSlave device
   *i2cSlaveCR = 0;
 
-  // pinmode GPIO2,GPIO3=input
   *gpio &= 0xfffff03f;
   if (piModel == 4) {
-    // pinmode GPIO10,GPIO11=input
     *(gpio + 1) &= 0xffffffc0;
   } else {
-    // pinmode GPIO18,GPIO19=input
     *(gpio + 1) &= 0xc0ffffff;
   }
 }
@@ -251,60 +201,47 @@ int i2cReadyToRead() {
   return 0;
 }
 
-// get message from I2C receive buffer
 int i2cReceive(char m[]) {
-  // todo implement end of packet check
   int i = 1;
   uint64_t timeOut;
 
   m[0] = *i2cSlaveSLV * 2;
 
-  // a message should be finished receiving in 10ms
-  timeOut = *timer() + 10000;
+  timeOut = hal_rpi_get_timer_us() + 10000;
 
-  // while I2CSlave is receiving or byte availible
   while (((*i2cSlaveFR & 0x20) != 0) || ((*i2cSlaveFR & 2) == 0)) {
 
-    // timeout
-    if (timeOut < *timer()) {
+    if (timeOut < hal_rpi_get_timer_us()) {
       return ERROR_TIMEOUT;
     }
 
-    // when a byte is availible, store it
     if ((*i2cSlaveFR & 2) == 0) {
       m[i] = *i2cSlave & 0xff;
       i++;
-      // complete packet
       if (i > 2 && i >= m[2])
         break;
       if (i >= RECEIVE_BUFFER_LENGTH) {
         return ERROR_SWB_FULL;
       }
     } else {
-      // no byte availible receiving a new one will take 70us
       usleep(10);
     }
   }
 
-  // listen for broadcast again
   *i2cSlaveSLV = 0x00;
 
   m[i] = -1;
 
-  // nothing?
   if (i == 1)
     return ERROR_OK;
 
-  // dgt3000 sends to 0 bytes after some packets
   if (i == 3 && m[1] == 0 && m[2] == 0)
     return ERROR_OK;
 
-  // not from clock?
   if (m[1] != 16) {
     return ERROR_NACK;
   }
 
-  // errors?
   if (*i2cSlaveRSR & 1 || i < 5 || i != m[2]) {
     *i2cSlaveRSR = 0;
     return ERROR_HWB_FULL;
@@ -321,23 +258,162 @@ int checkCoreFreq() {
   FILE *fp;
   char line[100];
 
-  /* Open the command for reading. */
   fp = popen("vcgencmd measure_clock core", "r");
   if (fp == NULL) {
     return 250;
   }
 
-  /* Read the output a line at a time - output it. */
   fgets(line, sizeof(line), fp);
 
-  /* close */
   pclose(fp);
 
   return atoi(line + 13) / 1000000;
 }
 
-uint64_t *timer() {
-  static uint64_t i;
-  i = ((uint64_t)*timerl << 32) + *timerh;
-  return &i;
+static uint64_t hal_rpi_get_timer_us(void) {
+  static uint64_t val;
+  val = ((uint64_t)*timerl << 32) + *timerh;
+  return val;
 }
+
+// Copy of i2cSend from dgtpicom.c (line 843-1007)
+// This is the complex I2C send implementation
+static int hal_rpi_i2c_send(const uint8_t *message, uint8_t msg_length,
+                            uint8_t ack_address) {
+  int i, n;
+  uint64_t timeOut;
+  char m[256];
+
+  // Convert uint8_t to char for compatibility
+  for (i = 0; i < msg_length; i++) {
+    m[i] = message[i];
+  }
+
+  // set length
+  *i2cMasterDLEN = m[2] - 1;
+
+  // clear buffer
+  *i2cMaster = 0x10;
+
+  // fill the buffer
+  for (n = 1; n < m[2] && *i2cMasterS & 0x10; n++) {
+    *i2cMasterFIFO = m[n];
+  }
+
+  // check 256 times if the bus is free
+  timeOut = hal_rpi_get_timer_us() + 10000;
+  for (i = 0; i < 256; i++) {
+    if ((SCL1IN == 0) || (SDA1IN == 0)) {
+      i = 0;
+    }
+    if (((*i2cSlaveFR & 0x20) != 0) || ((*i2cSlaveFR & 2) == 0)) {
+      i = 0;
+    }
+    if (hal_rpi_get_timer_us() > timeOut) {
+      return ERROR_TIMEOUT;
+    }
+  }
+  pthread_mutex_lock(&receiveMutex);
+
+  // clear ack and hello so we can receive a new ack or hello
+  dgtRx.ack[0] = 0;
+  dgtRx.hello = 0;
+
+  // listen to ack adress
+  *i2cSlaveSLV = ack_address;
+
+  // start sending
+  *i2cMasterS = 0x302;
+  *i2cMaster = 0x8080;
+
+  // write the rest of the message
+  for (; n < m[2]; n++) {
+    timeOut = hal_rpi_get_timer_us() + 10000;
+    while ((*i2cMasterS & 0x10) == 0) {
+      if (*i2cMasterS & 2) {
+        *i2cSlaveSLV = 0x00;
+        break;
+      }
+      if (hal_rpi_get_timer_us() > timeOut) {
+        *i2cSlaveSLV = 0x00;
+        pthread_mutex_unlock(&receiveMutex);
+        return ERROR_TIMEOUT;
+      }
+    }
+    if (*i2cMasterS & 2)
+      break;
+    *i2cMasterFIFO = m[n];
+  }
+
+  // wait for done
+  timeOut = hal_rpi_get_timer_us() + 10000;
+  while ((*i2cMasterS & 2) == 0)
+    if (hal_rpi_get_timer_us() > timeOut) {
+      *i2cSlaveSLV = 0x00;
+      pthread_mutex_unlock(&receiveMutex);
+      return ERROR_TIMEOUT;
+    }
+
+  // succes?
+  if ((*i2cMasterS & 0x300) == 0) {
+    pthread_mutex_unlock(&receiveMutex);
+    return ERROR_OK;
+  }
+
+  *i2cSlaveSLV = 0x00;
+
+  // collision or clock off
+  if (*i2cMasterS & 0x100) {
+    *i2cMasterS = 0x100;
+  }
+  if (*i2cMasterS & 0x200) {
+    *i2cMasterS = 0x200;
+    pthread_mutex_unlock(&receiveMutex);
+    return ERROR_CST;
+  }
+
+  // clear fifo
+  *i2cMaster |= 0x10;
+
+  if ((SCL1IN == 0) || (SDA1IN == 0) || ((*i2cSlaveFR & 0x20) != 0) ||
+      ((*i2cSlaveFR & 2) == 0)) {
+    pthread_mutex_unlock(&receiveMutex);
+    return ERROR_LINES;
+  }
+
+  pthread_mutex_unlock(&receiveMutex);
+  return ERROR_SILENT;
+}
+
+static int hal_rpi_i2c_receive_ready(void) { return i2cReadyToRead(); }
+
+static int hal_rpi_i2c_receive(uint8_t *buffer, uint8_t max_length) {
+  return i2cReceive((char *)buffer);
+}
+
+static void hal_rpi_i2c_set_destination(uint8_t address) {
+  i2cDestination(address);
+}
+
+static void hal_rpi_i2c_listen_address(uint8_t address) {
+  i2cListenAddress(address);
+}
+
+static void hal_rpi_i2c_reset(void) { i2cReset(); }
+
+static int hal_rpi_check_core_freq_mhz(void) { return checkCoreFreq(); }
+
+// Export HAL instance for runtime detection (Pi1-Pi4)
+hal_ops_t hal_rpi_stubs_ops = {
+    .init = initHw,
+    .cleanup = stopHw,
+    .i2c_send = hal_rpi_i2c_send,
+    .i2c_receive_ready = hal_rpi_i2c_receive_ready,
+    .i2c_receive = hal_rpi_i2c_receive,
+    .i2c_set_destination = hal_rpi_i2c_set_destination,
+    .i2c_listen_address = hal_rpi_i2c_listen_address,
+    .i2c_reset = hal_rpi_i2c_reset,
+    .get_timer_us = hal_rpi_get_timer_us,
+    .check_core_freq_mhz = hal_rpi_check_core_freq_mhz,
+    .name = "Raspberry Pi (1-4)",
+};

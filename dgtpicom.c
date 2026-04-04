@@ -290,8 +290,8 @@ int dgt3000Wake() {
   }
 
   // Get Hello message (in max 10ms, usualy 5ms)
-  t = *timer() + 10000;
-  while (*timer() < t) {
+  t = hal.get_timer_us() + 10000;
+  while (hal.get_timer_us() < t) {
     if (dgtRx.hello == 1)
       return ERROR_OK;
     usleep(100);
@@ -496,7 +496,7 @@ void *dgt3000Receive(void *a) {
           if (rm[4] & 0x1f) {
             dgtRx.buttonState |= rm[4] & 0x1f;
             dgtRx.lastButtonState = rm[4];
-            dgtRx.buttonRepeatTime = *timer() + DGTPICOM_KEY_DELAY;
+            dgtRx.buttonRepeatTime = hal.get_timer_us() + DGTPICOM_KEY_DELAY;
             dgtRx.buttonCount = 0;
 
             // buffer full?
@@ -546,7 +546,7 @@ void *dgt3000Receive(void *a) {
         dgtRx.error = e;
       }
     } else {
-      if (dgtRx.buttonRepeatTime != 0 && dgtRx.buttonRepeatTime < *timer()) {
+      if (dgtRx.buttonRepeatTime != 0 && dgtRx.buttonRepeatTime < hal.get_timer_us()) {
         dgtRx.buttonRepeatTime += DGTPICOM_KEY_REPEAT;
         dgtRx.buttonCount++;
 
@@ -577,11 +577,11 @@ int dgt3000GetAck(char adr, char cmd, uint64_t timeOut) {
   hal.i2c_listen_address(adr);
 
   // check until timeout
-  timeOut += *timer();
+  timeOut += hal.get_timer_us();
   receiveTimeOut.tv_sec = timeOut / 1000000;
   receiveTimeOut.tv_nsec = timeOut % 1000000;
 
-  while (*timer() < timeOut) {
+  while (hal.get_timer_us() < timeOut) {
     if (dgtRx.ack[0] == cmd) {
       pthread_mutex_unlock(&receiveMutex);
       return ERROR_OK;

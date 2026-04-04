@@ -176,7 +176,19 @@ static void hal_rpi5_stop_hardware(void) {
   timer64 = NULL;
 }
 
+int hal_rpi5_init(int platform) {
+  (void)platform;
+  if (hal_rpi5_map_memory() < 0)
+    return -1;
+  hal_rpi5_config_i2c1_pins();
+  return 0;
+}
+
+void hal_rpi5_cleanup(void) { hal_rpi5_stop_hardware(); }
+
 hal_ops_t hal_rpi5_ops = {
+    .init = hal_rpi5_init,
+    .cleanup = hal_rpi5_cleanup,
     .i2c_send = hal_rpi5_i2c_send,
     .i2c_receive_ready = hal_rpi5_i2c_receive_ready,
     .i2c_receive = hal_rpi5_i2c_receive,
@@ -185,15 +197,7 @@ hal_ops_t hal_rpi5_ops = {
     .i2c_reset = hal_rpi5_i2c_reset,
     .get_timer_us = hal_rpi5_get_timer_us,
     .check_core_freq_mhz = hal_rpi5_check_core_freq_mhz,
+    .name = "Raspberry Pi 5",
 };
-
-int hal_rpi5_init(void) {
-  if (hal_rpi5_map_memory() < 0)
-    return -1;
-  hal_rpi5_config_i2c1_pins();
-  return 0;
-}
-
-void hal_rpi5_cleanup(void) { hal_rpi5_stop_hardware(); }
 
 const char *hal_rpi5_get_platform_name(void) { return "Raspberry Pi 5"; }
